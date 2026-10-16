@@ -11,3 +11,10 @@
 - Links tab: open deep links and URLs on the selected device.
 - Screenshot button: saves to ~/Pictures/KMP Device Hub and copies the image to the clipboard.
 - Wi-Fi debugging: pair and connect Android devices over Wi-Fi.
+- Pro: apply settings, links, launches, presets and pushes to all running devices at once.
+- Pro: test presets (dark + largest text, right-to-left, long words, slow network, offline, store screenshots) and your own.
+- Pro: screen recording to ~/Movies/KMP Device Hub.
+- Pro: push notification tester.
+- Pro: deep link library, including links declared in AndroidManifest.xml and Info.plist.
+- Pro: simulated location, Android emulator network conditions and a clean 9:41 status bar.
+- Deep links with `&` or spaces now open correctly on Android.

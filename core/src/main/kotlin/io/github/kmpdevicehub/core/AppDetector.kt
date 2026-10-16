@@ -61,7 +61,7 @@ object AppDetector {
         return if (expanded != value && '$' in expanded) resolve(expanded, vars, depth + 1) else expanded
     }
 
-    private fun walk(dir: File, depth: Int, visit: (File) -> Unit) {
+    internal fun walk(dir: File, depth: Int, visit: (File) -> Unit) {
         if (depth < 0) return
         for (child in dir.listFiles().orEmpty()) {
             if (child.isDirectory) {

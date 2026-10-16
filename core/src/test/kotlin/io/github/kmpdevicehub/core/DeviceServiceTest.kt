@@ -16,6 +16,16 @@ class FakeRunner(private val responses: Map<String, CommandResult>) : CommandRun
         return responses[key] ?: CommandResult(127, "", "unexpected command: $key")
     }
     override fun spawn(command: List<String>) { spawned += command.joinToString(" ") }
+    val started = mutableListOf<String>()
+    override fun start(command: List<String>): RunningProcess {
+        started += command.joinToString(" ")
+        return object : RunningProcess {
+            override val pid = 4242L
+            override var isAlive = true
+            override fun waitFor(timeoutSeconds: Long) = true.also { isAlive = false }
+            override fun kill() { isAlive = false }
+        }
+    }
 }
 
 private fun ok(stdout: String) = CommandResult(0, stdout, "")

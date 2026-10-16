@@ -80,6 +80,16 @@ intellijPlatform {
             // No untilBuild: the plugin uses stable platform APIs only.
             untilBuild = provider { null }
         }
+        // Paid (freemium) plan: only once JetBrains Marketplace has approved it and assigned the product code,
+        // e.g. -Pdevicehub.productCode=PKMPDEVICEHUB. Without it the build is free and every Pro feature is on.
+        providers.gradleProperty("devicehub.productCode").orNull?.let { productCode ->
+            productDescriptor {
+                code = productCode
+                releaseDate = providers.gradleProperty("devicehub.releaseDate")
+                releaseVersion = providers.gradleProperty("devicehub.releaseVersion")
+                optional = true
+            }
+        }
     }
 
     // ./gradlew :idea-plugin:signPlugin — values come from CI secrets, never from files in the repo.
@@ -123,6 +133,8 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 tasks.named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
     val openProject = providers.gradleProperty("devicehub.openProject")
     argumentProviders += CommandLineArgumentProvider { listOfNotNull(openProject.orNull) }
+    // Lets the sandbox IDE try Pro in a paid build (honoured only in internal mode, never in a user's IDE).
+    jvmArgs("-Didea.is.internal=true", "-Dkmpdevicehub.pro=true")
 }
 
 tasks.named<Zip>("buildPlugin") {

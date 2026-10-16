@@ -6,10 +6,19 @@
     <p><b>Every Android device, emulator and iOS simulator in one panel.</b> Built for Kotlin Multiplatform and
     Compose Multiplatform developers who test on Android and iOS every day.</p>
     <ul>
-      <li>See running and stopped Android emulators, connected phones and iOS simulators together.</li>
-      <li>Clear status for each device: running, booting, waiting for USB authorization or offline.</li>
-      <li>Works with the tools you already have: the Android SDK and, on macOS, Xcode.</li>
+      <li>See running and stopped Android emulators, connected phones and iOS simulators together; start and stop them.</li>
+      <li>Launch, stop, clear data and uninstall your app; its Android and iOS ids are found in your project.</li>
+      <li>Grant and revoke permissions, switch dark mode and text size, and run your app in another language (RTL too).</li>
+      <li>Open deep links, take screenshots, and pair Android phones over Wi-Fi.</li>
     </ul>
+    <p><b>Pro</b> (free trial on JetBrains Marketplace):</p>
+    <ul>
+      <li>Apply anything to all running devices at once.</li>
+      <li>Test presets: dark mode + largest text, right-to-left, slow network, offline, store screenshots, or your own.</li>
+      <li>Screen recording, a push notification tester and a deep link library.</li>
+      <li>Simulated location, Android emulator network conditions and a clean 9:41 status bar.</li>
+    </ul>
+    <p>Works with the tools you already have: the Android SDK and, on macOS, Xcode.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

@@ -21,6 +21,19 @@ interface CommandRunner {
 
     /** Starts a long-running process (e.g. an emulator) without waiting for it. */
     fun spawn(command: List<String>)
+
+    /** Starts a process we stop later (e.g. a screen recording); null when it couldn't start. */
+    fun start(command: List<String>): RunningProcess?
+}
+
+/** A process started with [CommandRunner.start]. */
+interface RunningProcess {
+    val pid: Long
+    val isAlive: Boolean
+
+    /** Waits for the process to end; false on timeout. */
+    fun waitFor(timeoutSeconds: Long): Boolean
+    fun kill()
 }
 
 class ProcessCommandRunner : CommandRunner {
@@ -51,6 +64,23 @@ class ProcessCommandRunner : CommandRunner {
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()
+    }
+
+    override fun start(command: List<String>): RunningProcess? {
+        val process = try {
+            ProcessBuilder(command)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+        } catch (e: java.io.IOException) {
+            return null
+        }
+        return object : RunningProcess {
+            override val pid get() = process.pid()
+            override val isAlive get() = process.isAlive
+            override fun waitFor(timeoutSeconds: Long) = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            override fun kill() { process.destroyForcibly() }
+        }
     }
 }
 

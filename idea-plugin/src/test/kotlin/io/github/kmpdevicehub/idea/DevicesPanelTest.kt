@@ -80,10 +80,21 @@ class DevicesPanelTest : BasePlatformTestCase() {
                 "cmd uimode night" == c.substringAfter("shell ") -> CommandResult(0, "Night mode: no", "")
                 "dumpsys package" in c -> CommandResult(0, "requested permissions:\n  android.permission.CAMERA\nruntime permissions:\n  android.permission.CAMERA: granted=false, flags=[ ]\n", "")
                 "am start -W" in c -> CommandResult(0, "Status: ok", "")
+                "resolve-activity" in c -> CommandResult(0, "org.example.project/.MainActivity\n", "")
                 else -> CommandResult(0, "", "")
             }
         }
         override fun spawn(command: List<String>) { spawned += command.joinToString(" ") }
+        val started = java.util.concurrent.CopyOnWriteArrayList<String>()
+        override fun start(command: List<String>): io.github.kmpdevicehub.core.RunningProcess {
+            started += command.joinToString(" ")
+            return object : io.github.kmpdevicehub.core.RunningProcess {
+                override val pid = 777L
+                override val isAlive = true
+                override fun waitFor(timeoutSeconds: Long) = true
+                override fun kill() {}
+            }
+        }
     }
 
     fun `test app id is detected per platform and actions run on the selected device`() {
@@ -140,7 +151,7 @@ class DevicesPanelTest : BasePlatformTestCase() {
         panel.grant(AppPermission.CAMERA)
         assertTrue(waitFor { runner.ran.any { it == "/sdk/adb -s emulator-5554 shell pm grant org.example.project android.permission.CAMERA" } })
 
-        panel.openLink("myapp://orders/42")
+        panel.openLinkForTest("myapp://orders/42")
         assertTrue(waitFor { runner.ran.any { it.endsWith("-d myapp://orders/42 org.example.project") } })
 
         panel.takeScreenshot()
@@ -154,6 +165,86 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue(waitFor { runner.ran.any { it == "/usr/bin/xcrun simctl ui UDID-1 appearance dark" } })
     }
 
+    private fun proPanel(runner: RecordingRunner, pro: Boolean, upsells: MutableList<String> = mutableListOf()): DevicesPanel {
+        val tools = ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun")
+        return DevicesPanel(
+            project, testRootDisposable, load = { sample }, actions = DeviceActions(runner, tools), settings = DeviceSettings(runner, tools),
+            simulation = io.github.kmpdevicehub.core.DeviceSimulation(runner, tools),
+            recordingDir = java.nio.file.Files.createTempDirectory("rec").toFile(),
+            detectApps = { ProjectApps(listOf("org.example.project"), listOf("org.example.project.KotlinProject")) },
+            detectLinks = { listOf("myapp://orders") },
+            autoRefresh = false, isPro = { pro }, upsell = { upsells += it },
+        )
+    }
+
+    fun `test pro features run on every running device`() {
+        val runner = RecordingRunner()
+        val panel = proPanel(runner, pro = true)
+        assertTrue(waitFor { panel.rowCount == 9 })
+        panel.select("emulator-5554")
+        assertTrue(waitFor { panel.currentAppId == "org.example.project" })
+
+        panel.setAllDevices(true)
+        assertTrue(panel.allDevicesOn)
+        panel.toggleDarkMode(true)
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell cmd uimode night yes") && runner.ran.contains("/usr/bin/xcrun simctl ui UDID-1 appearance dark") })
+        assertTrue(waitFor { panel.lastResult?.message == "Done on all 2 devices." })
+
+        // Each platform launches its own app id.
+        panel.clickLaunch()
+        assertTrue(waitFor { runner.ran.contains("/usr/bin/xcrun simctl launch UDID-1 org.example.project.KotlinProject") && runner.ran.any { "monkey -p org.example.project " in it } })
+
+        panel.simulate.setPlace(4) // Karachi
+        panel.simulate.clickSetLocation()
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu geo fix 67.0011 24.8607") && runner.ran.contains("/usr/bin/xcrun simctl location UDID-1 set 24.8607,67.0011") })
+
+        panel.presets.applyPreset("Right-to-left (Arabic)")
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell cmd locale set-app-locales org.example.project --locales ar") })
+
+        panel.setAllDevices(false)
+        panel.simulate.applyNetwork(io.github.kmpdevicehub.core.NetworkProfile.EDGE)
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu network speed edge") })
+
+        panel.push.sendWith("Hello", "orderId=42")
+        assertTrue(waitFor { runner.ran.any { it.contains("-n org.example.project/.MainActivity") && it.endsWith("--es orderId 42") } })
+
+        panel.links.saveLink("myapp://orders/7")
+        assertEquals(listOf("myapp://orders/7", "myapp://orders"), panel.links.libraryLinks)
+
+        panel.presets.save(io.github.kmpdevicehub.core.TestPreset("My preset", darkMode = true))
+        assertTrue("My preset" in panel.presets.presetNames)
+
+        panel.toggleRecordingForTest()
+        assertTrue(panel.isRecording)
+        assertTrue(runner.started.single().contains("shell screenrecord"))
+        panel.toggleRecordingForTest()
+        assertTrue(waitFor { panel.lastResult?.message?.startsWith("Recording saved to ") == true })
+        assertTrue(runner.ran.contains("/sdk/adb -s emulator-5554 shell pkill -INT screenrecord"))
+    }
+
+    fun `test pro features explain Pro instead of running when locked`() {
+        val runner = RecordingRunner()
+        val upsells = mutableListOf<String>()
+        val panel = proPanel(runner, pro = false, upsells = upsells)
+        assertTrue(waitFor { panel.rowCount == 9 })
+        panel.select("emulator-5554")
+        assertTrue(waitFor { panel.currentAppId == "org.example.project" })
+        val before = runner.ran.size
+
+        panel.setAllDevices(true)
+        assertFalse("stays off without Pro", panel.allDevicesOn)
+        panel.simulate.clickSetLocation()
+        panel.presets.applyPreset("Offline")
+        panel.toggleRecordingForTest()
+        assertFalse(panel.isRecording)
+        assertEquals(listOf("Actions on all running devices", "Simulated location", "Test presets", "Screen recording"), upsells)
+        assertTrue(runner.ran.drop(before).none { "geo fix" in it || "airplane-mode" in it })
+
+        // Free features keep working.
+        panel.toggleDarkMode(true)
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell cmd uimode night yes") })
+    }
+
     /** Renders build/devices-panel.png for a visual check. */
     fun `test render snapshot`() {
         val panel = DevicesPanel(project, testRootDisposable, load = { sample }, autoRefresh = false,
@@ -162,12 +253,17 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue(waitFor { panel.rowCount == 9 })
         panel.select("emulator-5554")
         assertTrue(waitFor { panel.installedText.startsWith("✓") })
-        panel.setSize(440, 760)
-        com.intellij.util.ui.UIUtil.uiTraverser(panel).forEach { it.doLayout() }
-        val image = java.awt.image.BufferedImage(880, 1520, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        val names = listOf("App", "Simulate", "Push", "Presets")
+        val image = java.awt.image.BufferedImage(880 * names.size, 1520, java.awt.image.BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics()
         g.scale(2.0, 2.0)
-        panel.printAll(g)
+        for (name in names) {
+            panel.selectTab(name)
+            panel.setSize(440, 760)
+            com.intellij.util.ui.UIUtil.uiTraverser(panel).forEach { it.doLayout() }
+            panel.printAll(g)
+            g.translate(440, 0)
+        }
         g.dispose()
         javax.imageio.ImageIO.write(image, "png", File(System.getProperty("user.dir"), "build/devices-panel.png"))
     }

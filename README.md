@@ -23,16 +23,32 @@ Early development.
   another language (including right-to-left Arabic, Urdu and Hebrew); open deep links; screenshots saved and copied
   to the clipboard; Android Wi-Fi debugging (pair and connect).
 
-Coming next (Pro): actions on all devices at once, test presets, a deep link library, screen recording, a push
-notification tester, simulated location and emulator network conditions. After that: a **Network Inspector** for
-your app's API calls (requests, JSON responses, errors, connectivity and bandwidth), unified logs and an app data
-explorer.
+- **Milestone 4 (done, Pro):** apply actions to **all running devices** at once; **test presets** (built-in and your
+  own); **screen recording**; a **push notification tester** (real simulated pushes on iOS, a notification-tap intent
+  with your data on Android); a **deep link library** with links found in your manifest and `Info.plist`;
+  **simulated location**; Android emulator **network conditions** (LTE, 3G, EDGE, GPRS, offline); a **clean 9:41
+  status bar** for store screenshots.
+
+Coming next: a **Network Inspector** for your app's API calls (requests, JSON responses, errors, connectivity and
+bandwidth), then unified logs and an app data explorer.
+
+## Pro
+
+Pro is sold through JetBrains Marketplace, which also runs the free trial. Builds made without a product code (the
+default) are free early-access builds with every Pro feature on. Once Marketplace approves the paid plan and assigns a
+product code:
+
+```bash
+./gradlew :idea-plugin:buildPlugin -Pdevicehub.productCode=<CODE>   # adds an optional (freemium) product-descriptor
+```
+
+Bump `devicehub.releaseDate` / `devicehub.releaseVersion` in `gradle.properties` for each major release.
 
 ## How it works
 
 | Module | What it is |
 |---|---|
-| [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices from adb, the emulator tool and `simctl`. Every command goes through a `CommandRunner`, faked in tests. |
+| [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices, and runs every device action, setting, simulation and preset through them. Every command goes through a `CommandRunner`, faked in tests. |
 | [`idea-plugin`](idea-plugin) | The KMP Devices tool window for Android Studio and IntelliJ IDEA 2025.1+. |
 
 Requirements: the Android SDK for Android devices; macOS with Xcode for iOS simulators.

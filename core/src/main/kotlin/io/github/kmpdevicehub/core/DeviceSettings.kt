@@ -187,7 +187,7 @@ class DeviceSettings(
         if (!LINK.matches(link)) return@running ActionResult.failed("\"$link\" isn't a link (expected something like myapp://home or https://…).")
         when (device.platform) {
             DevicePlatform.ANDROID -> adb { adb ->
-                val command = listOf(adb, "-s", device.id, "shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", link) +
+                val command = listOf(adb, "-s", device.id, "shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", shellQuote(link)) +
                     listOfNotNull(appId?.takeIf { it.isNotBlank() })
                 val r = runner.run(command, timeoutSeconds = 30)
                 when {

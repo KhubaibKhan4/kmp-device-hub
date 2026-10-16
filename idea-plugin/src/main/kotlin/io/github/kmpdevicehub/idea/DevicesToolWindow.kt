@@ -48,6 +48,12 @@ import io.github.kmpdevicehub.core.DeviceState
 import io.github.kmpdevicehub.core.ProjectApps
 import io.github.kmpdevicehub.core.ToolLocator
 import io.github.kmpdevicehub.core.ToolPaths
+import io.github.kmpdevicehub.core.Batch
+import io.github.kmpdevicehub.core.DeviceSimulation
+import io.github.kmpdevicehub.core.LinkDetector
+import io.github.kmpdevicehub.core.PresetRunner
+import io.github.kmpdevicehub.core.ScreenRecording
+import io.github.kmpdevicehub.core.TestPreset
 import java.awt.BorderLayout
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -85,14 +91,20 @@ class DevicesPanel(
     private val load: () -> DeviceList = { DeviceService(tools = toolsFor(project)).list() },
     private val actions: DeviceActions = DeviceActions(tools = toolsFor(project)),
     private val settings: DeviceSettings = DeviceSettings(tools = toolsFor(project)),
+    private val simulation: DeviceSimulation = DeviceSimulation(tools = toolsFor(project)),
     private val screenshotDir: File = File(System.getProperty("user.home"), "Pictures/KMP Device Hub"),
+    private val recordingDir: File = File(System.getProperty("user.home"), "Movies/KMP Device Hub"),
     private val detectApps: () -> ProjectApps = { project.basePath?.let { AppDetector.detect(File(it)) } ?: ProjectApps(emptyList(), emptyList()) },
+    private val detectLinks: () -> List<String> = { project.basePath?.let { LinkDetector.detect(File(it)) }.orEmpty() },
+    private val isPro: () -> Boolean = ProLicense::isLicensed,
     private val autoRefresh: Boolean = true,
     /** Asks before destructive actions; tests answer automatically. */
     private val confirm: (title: String, message: String) -> Boolean = { title, message ->
         Messages.showYesNoDialog(project, message, title, Messages.getWarningIcon()) == Messages.YES
     },
-) : JPanel(BorderLayout()) {
+    /** Shown when a Pro feature is used without Pro. */
+    private val upsell: ((feature: String) -> Unit)? = null,
+) : JPanel(BorderLayout()), PanelContext {
     private val model = CollectionListModel<Row>()
     private val list = JBList(model).apply {
         cellRenderer = DeviceRenderer()
@@ -127,17 +139,26 @@ class DevicesPanel(
         renderer = labelRenderer<Any> { (it as? AppLanguage)?.label ?: it?.toString() }
     }
     private val applyLanguageButton = JButton("Run app in this language")
-    private val settingsHint = JBLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
+    private val settingsHint = HintLabel()
 
     // Permissions tab
     private val permissionStates = AppPermission.entries.associateWith { JBLabel().apply { font = JBFont.small() } }
     private val permissionButtons = AppPermission.entries.associateWith { JButton("Grant") to JButton("Revoke") }
     private val resetPermissionsButton = JButton("Reset all")
-    private val permissionsHint = JBLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
+    private val permissionsHint = HintLabel()
 
-    // Links tab
-    private val linkField = JBTextField().apply { emptyText.text = "myapp://orders/42 or https://example.com/orders/42" }
-    private val openLinkButton = JButton("Open link", AllIcons.Ide.External_link_arrow)
+    private val allDevicesBox = JBCheckBox("All running devices").apply {
+        toolTipText = "Apply settings, links, launches, presets and pushes to every running device at once (Pro)"
+    }
+    private val linksTab = LinksTab(this, PropertiesComponent.getInstance(project)) { openLink(it) }
+    private val simulateTab = SimulateTab(this, simulation)
+    private val pushTab = PushTab(this, simulation)
+    private val presetsTab = PresetsTab(this, PresetRunner(settings, simulation), PropertiesComponent.getInstance()) { currentConditions() }
+    private val deviceTabs = listOf(linksTab, simulateTab, pushTab, presetsTab)
+
+    @Volatile
+    private var recording: ScreenRecording? = null
+    private lateinit var tabs: JBTabbedPane
 
     /** True while controls are being set from device state, so their listeners don't act. */
     private var updating = false
@@ -164,6 +185,7 @@ class DevicesPanel(
             action("Stop", "Shut down the selected emulator or simulator", AllIcons.Actions.Suspend, { canShutdown(it) }) { shutdown(it!!) },
             com.intellij.openapi.actionSystem.Separator.getInstance(),
             action("Screenshot", "Save a screenshot and copy it to the clipboard", AllIcons.FileTypes.Image, { it?.isRunning == true }) { screenshot(it!!) },
+            recordAction(),
             action("Wi-Fi Debugging", "Pair and connect an Android phone over Wi-Fi", AllIcons.Nodes.Plugin, { true }) { WifiDialog(project, settings) { refresh() }.show() },
         ), true).apply { targetComponent = this@DevicesPanel }
 
@@ -175,8 +197,8 @@ class DevicesPanel(
             }
         })
         appBox.addActionListener { rememberApp(); checkInstalled() }
-        launchButton.addActionListener { appAction("Launching") { d, a -> actions.launch(d, a) } }
-        stopAppButton.addActionListener { appAction("Stopping") { d, a -> actions.stop(d, a) } }
+        launchButton.addActionListener { rememberApp(); runOnTargets("Launching ${appId()}…") { d, a -> actions.launch(d, a) } }
+        stopAppButton.addActionListener { rememberApp(); runOnTargets("Stopping ${appId()}…") { d, a -> actions.stop(d, a) } }
         clearButton.addActionListener {
             val d = selectedDevice() ?: return@addActionListener
             if (confirm("Clear App Data", "Delete all data of ${appId()} on ${d.name}? The app starts fresh, as if just installed.")) {
@@ -192,20 +214,17 @@ class DevicesPanel(
 
         darkBox.addActionListener {
             if (updating) return@addActionListener
-            val d = selectedDevice() ?: return@addActionListener
-            run("Switching appearance…") { settings.setDarkMode(d, darkBox.isSelected) }
+            val dark = darkBox.isSelected
+            runOnTargets("Switching appearance…") { d, _ -> settings.setDarkMode(d, dark) }
         }
         textSizeBox.addActionListener {
             if (updating) return@addActionListener
-            val d = selectedDevice() ?: return@addActionListener
             val size = textSizeBox.selectedItem as? TextSize ?: return@addActionListener
-            run("Changing text size…") { settings.setTextSize(d, size) }
+            runOnTargets("Changing text size…") { d, _ -> settings.setTextSize(d, size) }
         }
         applyLanguageButton.addActionListener {
-            val d = selectedDevice() ?: return@addActionListener
-            val id = appId()
             val language = languageBox.selectedItem as? AppLanguage
-            run("Changing language…") { settings.setAppLanguage(d, id, language) }
+            runOnTargets("Changing language…") { d, a -> settings.setAppLanguage(d, a, language) }
         }
         permissionButtons.forEach { (permission, buttons) ->
             buttons.first.addActionListener { permissionAction(permission, grant = true) }
@@ -214,10 +233,11 @@ class DevicesPanel(
         resetPermissionsButton.addActionListener {
             val d = selectedDevice() ?: return@addActionListener
             val id = appId()
-            run("Resetting permissions…") { settings.resetPermissions(d, id) }.also { }
+            run("Resetting permissions…") { settings.resetPermissions(d, id) }
         }
-        openLinkButton.addActionListener { openLink() }
-        linkField.addActionListener { openLink() }
+        allDevicesBox.addActionListener {
+            if (allDevicesBox.isSelected && !requirePro("Actions on all running devices")) allDevicesBox.isSelected = false
+        }
 
         val appTab = panel {
             row("App:") { cell(appBox).align(AlignX.FILL).resizableColumn() }
@@ -243,20 +263,18 @@ class DevicesPanel(
             row { cell(resetPermissionsButton) }
             row { cell(permissionsHint) }
         }
-        val linksTab = panel {
-            row { cell(linkField).align(AlignX.FILL).resizableColumn() }
-            row { cell(openLinkButton) }
-            row {
-                comment("Opens the link the way a tap would; with an app selected on Android, only that app handles it.")
-            }
-        }
-        val tabs = JBTabbedPane().apply {
+        tabs = JBTabbedPane().apply {
+            tabLayoutPolicy = javax.swing.JTabbedPane.SCROLL_TAB_LAYOUT
             addTab("App", appTab)
             addTab("Settings", settingsTab)
             addTab("Permissions", ScrollPaneFactory.createScrollPane(permissionsTab, true))
-            addTab("Links", linksTab)
+            addTab("Links", linksTab.component)
+            addTab("Simulate", ScrollPaneFactory.createScrollPane(simulateTab.component, true))
+            addTab("Push", pushTab.component)
+            addTab("Presets", presetsTab.component)
         }
         val appPanel = JPanel(BorderLayout()).apply {
+            add(panel { row { cell(allDevicesBox) } }.apply { border = JBUI.Borders.empty(4, 10, 0, 10) }, BorderLayout.NORTH)
             add(tabs, BorderLayout.CENTER)
             add(panel {
                 row { cell(result) }
@@ -275,7 +293,8 @@ class DevicesPanel(
         selectionChanged()
         ApplicationManager.getApplication().executeOnPooledThread {
             apps = detectApps()
-            onEdt { selectionChanged() }
+            val links = detectLinks()
+            onEdt { linksTab.setDetected(links); selectionChanged() }
         }
         refresh()
         if (autoRefresh) schedule()
@@ -333,9 +352,44 @@ class DevicesPanel(
 
     // ---- Selection and app ---------------------------------------------------------------------------------
 
-    private fun selectedDevice(): Device? = (list.selectedValue as? Row.Item)?.device
+    override fun selectedDevice(): Device? = (list.selectedValue as? Row.Item)?.device
 
-    private fun appId(): String = (appBox.editor.item as? String ?: appBox.selectedItem as? String).orEmpty().trim()
+    override fun appId(): String = (appBox.editor.item as? String ?: appBox.selectedItem as? String).orEmpty().trim()
+
+    /** The app id to use on [device]: the one chosen here for its platform, else remembered or detected. */
+    private fun appIdFor(device: Device): String =
+        if (device.platform == selectedDevice()?.platform) appId()
+        else props.getValue(appKey(device.platform)) ?: apps.forPlatform(device.platform).firstOrNull().orEmpty()
+
+    override fun requirePro(feature: String): Boolean {
+        if (isPro()) return true
+        upsell?.invoke(feature) ?: ProLicense.showUpsell(project, feature, this)
+        return false
+    }
+
+    /** The selected device, or every running device with "All running devices" on. */
+    private fun targets(): List<Device> =
+        if (allDevicesBox.isSelected) lastList.devices.filter { it.state == DeviceState.RUNNING }
+        else listOfNotNull(selectedDevice()?.takeIf { it.isRunning })
+
+    override fun runOnTargets(progress: String, block: (device: Device, appId: String) -> ActionResult) {
+        if (allDevicesBox.isSelected && !requirePro("Actions on all running devices")) return
+        val devices = targets()
+        val ids = devices.associateWith { appIdFor(it) }
+        run(if (devices.size > 1) "${progress.removeSuffix("…")} on ${devices.size} devices…" else progress) {
+            Batch.run(devices) { d -> block(d, ids.getValue(d)) }
+        }
+    }
+
+    /** Current settings controls as a preset, for "Save current". */
+    private fun currentConditions() = TestPreset(
+        name = "",
+        darkMode = darkBox.isSelected,
+        textSize = textSizeBox.selectedItem as? TextSize,
+        language = (languageBox.selectedItem as? AppLanguage)?.android ?: "",
+        network = simulateTab.networkBox.selectedItem as? io.github.kmpdevicehub.core.NetworkProfile,
+        cleanStatusBar = simulateTab.statusBarBox.isSelected,
+    )
 
     private fun selectionChanged() {
         val device = selectedDevice()
@@ -349,7 +403,8 @@ class DevicesPanel(
         if (current != null && appId() != current && device != null) appBox.selectedItem = current
         val usable = device != null && device.isRunning
         listOf(appBox, launchButton, stopAppButton, clearButton, uninstallButton, darkBox, textSizeBox, languageBox,
-            applyLanguageButton, resetPermissionsButton, linkField, openLinkButton).forEach { it.isEnabled = usable }
+            applyLanguageButton, resetPermissionsButton).forEach { it.isEnabled = usable }
+        deviceTabs.forEach { it.deviceChanged(device) }
         permissionButtons.forEach { (permission, buttons) ->
             val supported = device?.platform != DevicePlatform.IOS || permission.ios != null
             buttons.first.isEnabled = usable && supported
@@ -390,14 +445,14 @@ class DevicesPanel(
     private fun refreshSettings() {
         val device = selectedDevice()
         if (device == null || !device.isRunning) {
-            settingsHint.text = device?.let { "Start ${it.name} to change its settings." } ?: "Select a device."
+            settingsHint.hint = device?.let { "Start ${it.name} to change its settings." } ?: "Select a device."
             permissionStates.values.forEach { it.text = "" }
-            permissionsHint.text = settingsHint.text
+            permissionsHint.hint = settingsHint.hint
             return
         }
         val id = appId()
-        settingsHint.text = if (device.platform == DevicePlatform.ANDROID) "App language needs Android 13+." else "Language relaunches the app with that language."
-        permissionsHint.text = when {
+        settingsHint.hint = if (device.platform == DevicePlatform.ANDROID) "App language needs Android 13+." else "Language relaunches the app with that language."
+        permissionsHint.hint = when {
             id.isBlank() -> "Choose your app on the App tab."
             device.platform == DevicePlatform.IOS -> "The iOS simulator doesn't report permission state. Camera and notifications can't be changed there."
             else -> "Only permissions your app requests can be granted."
@@ -439,16 +494,21 @@ class DevicesPanel(
         run(if (grant) "Granting ${permission.label}…" else "Revoking ${permission.label}…") { settings.setPermission(device, id, permission, grant) }
     }
 
-    private fun openLink() {
-        val device = selectedDevice() ?: return
-        val link = linkField.text
-        val id = appId().takeIf { device.platform == DevicePlatform.ANDROID }
-        run("Opening link…") { settings.openLink(device, link, id) }
+    private fun openLink(link: String) {
+        runOnTargets("Opening link…") { d, a -> settings.openLink(d, link, a.takeIf { d.platform == DevicePlatform.ANDROID }) }
+    }
+
+    private fun fileFor(dir: File, device: Device, extension: String): File {
+        val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss"))
+        return File(dir, "${device.name.replace(Regex("[^A-Za-z0-9 ._()-]"), "")} $stamp.$extension")
     }
 
     private fun screenshot(device: Device) {
-        val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss"))
-        val target = File(screenshotDir, "${device.name.replace(Regex("[^A-Za-z0-9 ._()-]"), "")} $stamp.png")
+        if (allDevicesBox.isSelected) {
+            runOnTargets("Taking screenshots…") { d, _ -> settings.screenshot(d, fileFor(screenshotDir, d, "png")) }
+            return
+        }
+        val target = fileFor(screenshotDir, device, "png")
         showResult(null, "Taking a screenshot of ${device.name}…")
         ApplicationManager.getApplication().executeOnPooledThread {
             val outcome = settings.screenshot(device, target)
@@ -472,6 +532,39 @@ class DevicesPanel(
         true
     }.getOrDefault(false)
 
+    // ---- Screen recording ----------------------------------------------------------------------------------
+
+    private fun recordAction() = object : DumbAwareAction("Record Screen", "Record the selected device's screen to a video (Pro)", AllIcons.Debugger.Db_set_breakpoint) {
+        override fun actionPerformed(e: AnActionEvent) = toggleRecording()
+        override fun update(e: AnActionEvent) {
+            val active = recording
+            e.presentation.text = if (active != null) "Stop Recording" else "Record Screen"
+            e.presentation.icon = if (active != null) AllIcons.Actions.Suspend else AllIcons.Debugger.Db_set_breakpoint
+            e.presentation.isEnabled = active != null || selectedDevice()?.isRunning == true
+        }
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+    }
+
+    private fun toggleRecording() {
+        val active = recording
+        if (active != null) {
+            recording = null
+            showResult(null, "Saving the recording of ${active.device.name}…")
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val outcome = simulation.stopRecording(active).let { if (it.ok) ActionResult.done("Recording saved to ${it.message}") else it }
+                lastResult = outcome
+                onEdt { showResult(outcome, outcome.message) }
+            }
+            return
+        }
+        val device = selectedDevice()?.takeIf { it.isRunning } ?: return
+        if (!requirePro("Screen recording")) return
+        val (outcome, started) = simulation.startRecording(device, fileFor(recordingDir, device, if (device.platform == DevicePlatform.IOS) "mov" else "mp4"))
+        recording = started
+        lastResult = outcome
+        showResult(if (outcome.ok) null else outcome, if (outcome.ok) "● ${outcome.message} Click Stop Recording to save." else outcome.message)
+    }
+
     // ---- Actions -------------------------------------------------------------------------------------------
 
     private fun canStart(device: Device?) = device != null && device.state == DeviceState.STOPPED &&
@@ -484,6 +577,7 @@ class DevicesPanel(
     private fun shutdown(device: Device) = run("Shutting down ${device.name}…") { actions.shutdown(device) }
 
     private fun appAction(verb: String, block: (Device, String) -> ActionResult) {
+        // Destructive app actions only ever run on the selected device.
         val device = selectedDevice() ?: return
         val id = appId()
         rememberApp()
@@ -565,7 +659,16 @@ class DevicesPanel(
     internal fun toggleDarkMode(on: Boolean) { darkBox.isSelected = on; darkBox.actionListeners.forEach { it.actionPerformed(null) } }
     internal fun grant(permission: AppPermission) = permissionButtons.getValue(permission).first.doClick()
     internal fun permissionStateText(permission: AppPermission): String = permissionStates.getValue(permission).text.orEmpty()
-    internal fun openLink(url: String) { linkField.text = url; openLinkButton.doClick() }
+    internal fun openLinkForTest(url: String) { linksTab.field.text = url; openLink(url) }
+    internal fun setAllDevices(on: Boolean) { allDevicesBox.isSelected = on; allDevicesBox.actionListeners.forEach { it.actionPerformed(null) } }
+    internal val allDevicesOn: Boolean get() = allDevicesBox.isSelected
+    internal val simulate get() = simulateTab
+    internal val push get() = pushTab
+    internal val presets get() = presetsTab
+    internal val links get() = linksTab
+    internal fun toggleRecordingForTest() = toggleRecording()
+    internal val isRecording: Boolean get() = recording != null
+    internal fun selectTab(title: String) { tabs.selectedIndex = tabs.indexOfTab(title) }
     internal fun takeScreenshot() = selectedDevice()?.let(::screenshot)
     internal val darkModeChecked: Boolean get() = darkBox.isSelected
 }
