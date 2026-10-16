@@ -22,3 +22,5 @@
 - devicehub-network library: a Ktor client plugin (Android, iOS, JVM) and an OkHttp interceptor; Android devices connect automatically through adb reverse.
 - Copy any call as cURL, URL or response body.
 - Pro: mock responses, fail requests or add latency with rules; export HAR.
+- Network demo sample app (Android + iOS simulator) in samples/network-demo.
+- Network Inspector shows emulators by their AVD name and iOS network errors as one readable line.

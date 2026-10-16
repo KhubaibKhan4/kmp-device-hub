@@ -62,7 +62,7 @@ by size only. Use `redactHeaders = setOf("Authorization")` to keep secrets out o
 **Only enable it in debug builds**: it sends your app's traffic, headers included, to whatever listens on that port.
 
 Until it's on Maven Central, publish it locally with `./gradlew :network:publishToMavenLocal` and add `mavenLocal()`
-to your repositories.
+to your repositories. [`samples/network-demo`](samples/network-demo) is a small Android + iOS app to try it with.
 
 ## Pro
 

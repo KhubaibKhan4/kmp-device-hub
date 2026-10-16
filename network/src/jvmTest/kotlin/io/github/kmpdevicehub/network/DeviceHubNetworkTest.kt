@@ -155,4 +155,21 @@ class DeviceHubNetworkTest {
         assertTrue(!DeviceHubConnection.isTextual("image/png"))
         assertEquals("""{"a":"q\"\n","b":[["k","v"]],"n":1}""", MiniJson.obj(listOf("a" to "q\"\n", "b" to listOf("k" to "v"), "n" to 1, "skip" to null)))
     }
+
+    @Test
+    fun `errors and device names read well in the IDE`() {
+        val darwin = "Exception in http request: Error Domain=NSURLErrorDomain Code=-1003 \"A server with the specified hostname could not be found.\" " +
+            "UserInfo={_kCFStreamErrorCodeKey=8, NSUnderlyingError=0x104c4a400 {Error Domain=kCFErrorDomainCFNetwork Code=-1003 \"(null)\"}}"
+        assertEquals(
+            "DarwinHttpRequestException: A server with the specified hostname could not be found. (NSURLErrorDomain -1003)",
+            errorSummary("DarwinHttpRequestException", darwin),
+        )
+        assertEquals("UnknownHostException: Unable to resolve host", errorSummary("UnknownHostException", "Unable to resolve host\n  at x.y"))
+        assertEquals("CancellationException", errorSummary("CancellationException", null))
+        assertEquals(300, errorSummary("E", "x".repeat(1000)).length)
+
+        assertEquals("Medium Phone API 37.0 (emulator)", androidDeviceName("Google", "sdk_gphone64_arm64", "Medium_Phone_API_37.0"))
+        assertEquals("Samsung SM-G991B", androidDeviceName("samsung", "SM-G991B", null))
+        assertEquals("Google Pixel 9", androidDeviceName("Google", "Pixel 9", ""))
+    }
 }

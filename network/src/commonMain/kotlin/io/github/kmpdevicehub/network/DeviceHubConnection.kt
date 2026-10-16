@@ -91,7 +91,7 @@ internal class DeviceHubConnection private constructor(private val config: Devic
     )
 
     fun fail(id: String, error: Throwable, durationMs: Long, rule: WireRule?) = send(
-        "fail", "id" to id, "error" to (error::class.simpleName?.let { "$it: " }.orEmpty() + (error.message ?: "")), "durationMs" to durationMs, "rule" to rule?.id,
+        "fail", "id" to id, "error" to errorSummary(error::class.simpleName, error.message), "durationMs" to durationMs, "rule" to rule?.id,
     )
 
     /** A body to report: its text when small and textual, otherwise just its size. */
@@ -198,6 +198,28 @@ internal class DeviceHubConnection private constructor(private val config: Devic
 }
 
 internal class CapturedBody(val text: String?, val size: Long)
+
+/**
+ * One readable line for the IDE. Darwin errors arrive as a whole NSError dump; keep its description
+ * ("A server with the specified hostname could not be found.") and code instead.
+ */
+internal fun errorSummary(type: String?, message: String?): String {
+    val text = message.orEmpty()
+    val nsError = Regex("""Error Domain=(\S+) Code=(-?\d+) "([^"]*)"""").find(text)
+    val detail = when {
+        nsError != null -> "${nsError.groupValues[3]} (${nsError.groupValues[1]} ${nsError.groupValues[2]})"
+        else -> text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim()
+    }
+    val summary = listOfNotNull(type?.takeIf { it.isNotEmpty() }, detail.takeIf { it.isNotEmpty() }).joinToString(": ")
+    return if (summary.length > 300) summary.take(299) + "…" else summary
+}
+
+/** "Medium Phone API 37.0 (emulator)" for emulators, "Samsung SM-G991B" for phones. */
+internal fun androidDeviceName(manufacturer: String, model: String, avdName: String?): String {
+    if (!avdName.isNullOrBlank()) return avdName.replace('_', ' ') + " (emulator)"
+    val maker = manufacturer.replaceFirstChar { it.uppercase() }
+    return if (model.startsWith(maker, ignoreCase = true)) model else "$maker $model".trim()
+}
 
 /** The app and device, for the IDE's list of connected apps. */
 internal class PlatformInfo(val platform: String, val device: String, val deviceId: String, val appId: String)
