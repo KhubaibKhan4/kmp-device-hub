@@ -19,9 +19,14 @@ Early development.
 - **Milestone 2 (done):** start and shut down emulators and simulators (double-click to start); your app's
   Android `applicationId` and iOS bundle id are detected from the project; **Launch**, **Stop**, **Clear data** and
   **Uninstall** on the selected device, with confirmation before anything destructive.
+- **Milestone 3 (done):** grant, revoke and reset app permissions; dark mode and text size; run your app in
+  another language (including right-to-left Arabic, Urdu and Hebrew); open deep links; screenshots saved and copied
+  to the clipboard; Android Wi-Fi debugging (pair and connect).
 
-Coming next: permissions, dark mode, text size, deep links and screenshots on both platforms. A Pro tier adds
-actions on all devices at once, test presets, a deep link library, screen recording and a push notification tester.
+Coming next (Pro): actions on all devices at once, test presets, a deep link library, screen recording, a push
+notification tester, simulated location and emulator network conditions. After that: a **Network Inspector** for
+your app's API calls (requests, JSON responses, errors, connectivity and bandwidth), unified logs and an app data
+explorer.
 
 ## How it works
 

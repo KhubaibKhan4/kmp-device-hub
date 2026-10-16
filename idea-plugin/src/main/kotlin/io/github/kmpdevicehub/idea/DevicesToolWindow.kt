@@ -20,7 +20,10 @@ import com.intellij.ui.CollectionListModel
 import com.intellij.ui.JBColor
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
+import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
@@ -29,6 +32,11 @@ import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import io.github.kmpdevicehub.core.ActionResult
+import io.github.kmpdevicehub.core.AppLanguage
+import io.github.kmpdevicehub.core.AppPermission
+import io.github.kmpdevicehub.core.DeviceSettings
+import io.github.kmpdevicehub.core.PermissionState
+import io.github.kmpdevicehub.core.TextSize
 import io.github.kmpdevicehub.core.AppDetector
 import io.github.kmpdevicehub.core.Device
 import io.github.kmpdevicehub.core.DeviceActions
@@ -76,6 +84,8 @@ class DevicesPanel(
     parent: Disposable,
     private val load: () -> DeviceList = { DeviceService(tools = toolsFor(project)).list() },
     private val actions: DeviceActions = DeviceActions(tools = toolsFor(project)),
+    private val settings: DeviceSettings = DeviceSettings(tools = toolsFor(project)),
+    private val screenshotDir: File = File(System.getProperty("user.home"), "Pictures/KMP Device Hub"),
     private val detectApps: () -> ProjectApps = { project.basePath?.let { AppDetector.detect(File(it)) } ?: ProjectApps(emptyList(), emptyList()) },
     private val autoRefresh: Boolean = true,
     /** Asks before destructive actions; tests answer automatically. */
@@ -108,6 +118,30 @@ class DevicesPanel(
     private val clearButton = JButton("Clear data", AllIcons.Actions.GC)
     private val uninstallButton = JButton("Uninstall", AllIcons.Actions.Cancel)
 
+    // Settings tab
+    private val darkBox = JBCheckBox("Dark mode")
+    private val textSizeBox = ComboBox<TextSize>(DefaultComboBoxModel<TextSize>(TextSize.entries.toTypedArray())).apply {
+        renderer = labelRenderer<TextSize> { (it as? TextSize)?.label }
+    }
+    private val languageBox = ComboBox<Any>(DefaultComboBoxModel<Any>((listOf<Any>(DEVICE_LANGUAGE) + AppLanguage.COMMON).toTypedArray())).apply {
+        renderer = labelRenderer<Any> { (it as? AppLanguage)?.label ?: it?.toString() }
+    }
+    private val applyLanguageButton = JButton("Run app in this language")
+    private val settingsHint = JBLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
+
+    // Permissions tab
+    private val permissionStates = AppPermission.entries.associateWith { JBLabel().apply { font = JBFont.small() } }
+    private val permissionButtons = AppPermission.entries.associateWith { JButton("Grant") to JButton("Revoke") }
+    private val resetPermissionsButton = JButton("Reset all")
+    private val permissionsHint = JBLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
+
+    // Links tab
+    private val linkField = JBTextField().apply { emptyText.text = "myapp://orders/42 or https://example.com/orders/42" }
+    private val openLinkButton = JButton("Open link", AllIcons.Ide.External_link_arrow)
+
+    /** True while controls are being set from device state, so their listeners don't act. */
+    private var updating = false
+
     private val alarm = Alarm(Alarm.ThreadToUse.POOLED_THREAD, parent)
     private val refreshing = AtomicBoolean(false)
     private val props = PropertiesComponent.getInstance(project)
@@ -128,6 +162,9 @@ class DevicesPanel(
             action("Refresh", "Find devices again", AllIcons.Actions.Refresh, { true }) { refresh() },
             action("Start", "Start the selected emulator or simulator", AllIcons.Actions.Execute, { canStart(it) }) { start(it!!) },
             action("Stop", "Shut down the selected emulator or simulator", AllIcons.Actions.Suspend, { canShutdown(it) }) { shutdown(it!!) },
+            com.intellij.openapi.actionSystem.Separator.getInstance(),
+            action("Screenshot", "Save a screenshot and copy it to the clipboard", AllIcons.FileTypes.Image, { it?.isRunning == true }) { screenshot(it!!) },
+            action("Wi-Fi Debugging", "Pair and connect an Android phone over Wi-Fi", AllIcons.Nodes.Plugin, { true }) { WifiDialog(project, settings) { refresh() }.show() },
         ), true).apply { targetComponent = this@DevicesPanel }
 
         list.addListSelectionListener { if (!it.valueIsAdjusting) selectionChanged() }
@@ -153,16 +190,79 @@ class DevicesPanel(
             }
         }
 
-        val appPanel = panel {
+        darkBox.addActionListener {
+            if (updating) return@addActionListener
+            val d = selectedDevice() ?: return@addActionListener
+            run("Switching appearance…") { settings.setDarkMode(d, darkBox.isSelected) }
+        }
+        textSizeBox.addActionListener {
+            if (updating) return@addActionListener
+            val d = selectedDevice() ?: return@addActionListener
+            val size = textSizeBox.selectedItem as? TextSize ?: return@addActionListener
+            run("Changing text size…") { settings.setTextSize(d, size) }
+        }
+        applyLanguageButton.addActionListener {
+            val d = selectedDevice() ?: return@addActionListener
+            val id = appId()
+            val language = languageBox.selectedItem as? AppLanguage
+            run("Changing language…") { settings.setAppLanguage(d, id, language) }
+        }
+        permissionButtons.forEach { (permission, buttons) ->
+            buttons.first.addActionListener { permissionAction(permission, grant = true) }
+            buttons.second.addActionListener { permissionAction(permission, grant = false) }
+        }
+        resetPermissionsButton.addActionListener {
+            val d = selectedDevice() ?: return@addActionListener
+            val id = appId()
+            run("Resetting permissions…") { settings.resetPermissions(d, id) }.also { }
+        }
+        openLinkButton.addActionListener { openLink() }
+        linkField.addActionListener { openLink() }
+
+        val appTab = panel {
             row("App:") { cell(appBox).align(AlignX.FILL).resizableColumn() }
             row { cell(installed) }
-            row {
-                cell(launchButton); cell(stopAppButton); cell(clearButton); cell(uninstallButton)
+            row { cell(launchButton); cell(stopAppButton) }
+            row { cell(clearButton); cell(uninstallButton) }
+        }
+        val settingsTab = panel {
+            row { cell(darkBox) }
+            row("Text size:") { cell(textSizeBox) }
+            row("App language:") { cell(languageBox).align(AlignX.FILL).resizableColumn() }
+            row { cell(applyLanguageButton) }
+            row { cell(settingsHint) }
+        }
+        val permissionsTab = panel {
+            AppPermission.entries.forEach { permission ->
+                val (grant, revoke) = permissionButtons.getValue(permission)
+                row(permission.label + ":") {
+                    cell(permissionStates.getValue(permission)).resizableColumn()
+                    cell(grant); cell(revoke)
+                }
             }
-            row { cell(result) }
-            row { cell(status) }
-        }.apply {
-            border = JBUI.Borders.compound(JBUI.Borders.customLineTop(JBColor.border()), JBUI.Borders.empty(6, 10))
+            row { cell(resetPermissionsButton) }
+            row { cell(permissionsHint) }
+        }
+        val linksTab = panel {
+            row { cell(linkField).align(AlignX.FILL).resizableColumn() }
+            row { cell(openLinkButton) }
+            row {
+                comment("Opens the link the way a tap would; with an app selected on Android, only that app handles it.")
+            }
+        }
+        val tabs = JBTabbedPane().apply {
+            addTab("App", appTab)
+            addTab("Settings", settingsTab)
+            addTab("Permissions", ScrollPaneFactory.createScrollPane(permissionsTab, true))
+            addTab("Links", linksTab)
+        }
+        val appPanel = JPanel(BorderLayout()).apply {
+            add(tabs, BorderLayout.CENTER)
+            add(panel {
+                row { cell(result) }
+                row { cell(status) }
+            }.apply { border = JBUI.Borders.empty(2, 10, 6, 10) }, BorderLayout.SOUTH)
+            border = JBUI.Borders.customLineTop(JBColor.border())
         }
 
         add(JPanel(BorderLayout()).apply {
@@ -248,7 +348,14 @@ class DevicesPanel(
         }
         if (current != null && appId() != current && device != null) appBox.selectedItem = current
         val usable = device != null && device.isRunning
-        listOf(appBox, launchButton, stopAppButton, clearButton, uninstallButton).forEach { it.isEnabled = usable }
+        listOf(appBox, launchButton, stopAppButton, clearButton, uninstallButton, darkBox, textSizeBox, languageBox,
+            applyLanguageButton, resetPermissionsButton, linkField, openLinkButton).forEach { it.isEnabled = usable }
+        permissionButtons.forEach { (permission, buttons) ->
+            val supported = device?.platform != DevicePlatform.IOS || permission.ios != null
+            buttons.first.isEnabled = usable && supported
+            buttons.second.isEnabled = usable && supported
+        }
+        refreshSettings()
         installed.text = when {
             device == null -> "Select a device to manage your app on it."
             !device.isRunning -> "Start ${device.name} to manage apps on it."
@@ -277,6 +384,94 @@ class DevicesPanel(
         }
     }
 
+    // ---- Settings ------------------------------------------------------------------------------------------
+
+    /** Reads dark mode, text size and permission states from the selected device. */
+    private fun refreshSettings() {
+        val device = selectedDevice()
+        if (device == null || !device.isRunning) {
+            settingsHint.text = device?.let { "Start ${it.name} to change its settings." } ?: "Select a device."
+            permissionStates.values.forEach { it.text = "" }
+            permissionsHint.text = settingsHint.text
+            return
+        }
+        val id = appId()
+        settingsHint.text = if (device.platform == DevicePlatform.ANDROID) "App language needs Android 13+." else "Language relaunches the app with that language."
+        permissionsHint.text = when {
+            id.isBlank() -> "Choose your app on the App tab."
+            device.platform == DevicePlatform.IOS -> "The iOS simulator doesn't report permission state. Camera and notifications can't be changed there."
+            else -> "Only permissions your app requests can be granted."
+        }
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val snapshot = settings.read(device)
+            val states = if (id.isBlank()) emptyMap() else settings.permissions(device, id)
+            onEdt {
+                if (selectedDevice()?.id != device.id) return@onEdt
+                updating = true
+                try {
+                    snapshot.darkMode?.let { darkBox.isSelected = it }
+                    snapshot.textSize?.let { textSizeBox.selectedItem = it }
+                } finally {
+                    updating = false
+                }
+                permissionStates.forEach { (permission, label) ->
+                    val state = states[permission]
+                    label.text = when {
+                        device.platform == DevicePlatform.IOS && permission.ios == null -> "Not on simulator"
+                        state == PermissionState.GRANTED -> "Granted"
+                        state == PermissionState.DENIED -> "Denied"
+                        state == PermissionState.NOT_REQUESTED -> "Not requested"
+                        else -> ""
+                    }
+                    label.foreground = when (state) {
+                        PermissionState.GRANTED -> DeviceColors.running
+                        PermissionState.DENIED -> DeviceColors.problem
+                        else -> UIUtil.getContextHelpForeground()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun permissionAction(permission: AppPermission, grant: Boolean) {
+        val device = selectedDevice() ?: return
+        val id = appId()
+        run(if (grant) "Granting ${permission.label}…" else "Revoking ${permission.label}…") { settings.setPermission(device, id, permission, grant) }
+    }
+
+    private fun openLink() {
+        val device = selectedDevice() ?: return
+        val link = linkField.text
+        val id = appId().takeIf { device.platform == DevicePlatform.ANDROID }
+        run("Opening link…") { settings.openLink(device, link, id) }
+    }
+
+    private fun screenshot(device: Device) {
+        val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss"))
+        val target = File(screenshotDir, "${device.name.replace(Regex("[^A-Za-z0-9 ._()-]"), "")} $stamp.png")
+        showResult(null, "Taking a screenshot of ${device.name}…")
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val outcome = settings.screenshot(device, target)
+            val shown = if (outcome.ok) {
+                val copied = copyImageToClipboard(target)
+                ActionResult.done("Screenshot saved to ${target.path}" + if (copied) " and copied to the clipboard." else ".")
+            } else outcome
+            lastResult = shown
+            onEdt { showResult(shown, shown.message) }
+        }
+    }
+
+    private fun copyImageToClipboard(file: File): Boolean = runCatching {
+        val image = javax.imageio.ImageIO.read(file) ?: return false
+        val transferable = object : java.awt.datatransfer.Transferable {
+            override fun getTransferDataFlavors() = arrayOf(java.awt.datatransfer.DataFlavor.imageFlavor)
+            override fun isDataFlavorSupported(flavor: java.awt.datatransfer.DataFlavor) = flavor == java.awt.datatransfer.DataFlavor.imageFlavor
+            override fun getTransferData(flavor: java.awt.datatransfer.DataFlavor): Any = image
+        }
+        com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(transferable)
+        true
+    }.getOrDefault(false)
+
     // ---- Actions -------------------------------------------------------------------------------------------
 
     private fun canStart(device: Device?) = device != null && device.state == DeviceState.STOPPED &&
@@ -302,7 +497,7 @@ class DevicesPanel(
             lastResult = outcome
             onEdt { showResult(outcome, outcome.message) }
             refreshNow()
-            onEdt { checkInstalled() }
+            onEdt { checkInstalled(); refreshSettings() }
         }
     }
 
@@ -330,6 +525,13 @@ class DevicesPanel(
 
     companion object {
         private const val REFRESH_MS = 4_000
+        private const val DEVICE_LANGUAGE = "Device language"
+
+        private fun <T> labelRenderer(text: (Any?) -> String?) = object : com.intellij.ui.ColoredListCellRenderer<T>() {
+            override fun customizeCellRenderer(list: javax.swing.JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
+                append(text(value).orEmpty())
+            }
+        }
 
         private fun appKey(platform: DevicePlatform) = "kmpdevicehub.app.${platform.name}"
 
@@ -360,4 +562,10 @@ class DevicesPanel(
     internal fun clickClearData() = clearButton.doClick()
     internal fun startSelected() = selectedDevice()?.let(::start)
     internal fun stopSelected() = selectedDevice()?.let(::shutdown)
+    internal fun toggleDarkMode(on: Boolean) { darkBox.isSelected = on; darkBox.actionListeners.forEach { it.actionPerformed(null) } }
+    internal fun grant(permission: AppPermission) = permissionButtons.getValue(permission).first.doClick()
+    internal fun permissionStateText(permission: AppPermission): String = permissionStates.getValue(permission).text.orEmpty()
+    internal fun openLink(url: String) { linkField.text = url; openLinkButton.doClick() }
+    internal fun takeScreenshot() = selectedDevice()?.let(::screenshot)
+    internal val darkModeChecked: Boolean get() = darkBox.isSelected
 }

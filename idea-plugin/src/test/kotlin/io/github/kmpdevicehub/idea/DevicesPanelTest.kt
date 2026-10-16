@@ -7,6 +7,8 @@ import io.github.kmpdevicehub.core.CommandResult
 import io.github.kmpdevicehub.core.CommandRunner
 import io.github.kmpdevicehub.core.Device
 import io.github.kmpdevicehub.core.DeviceActions
+import io.github.kmpdevicehub.core.DeviceSettings
+import io.github.kmpdevicehub.core.AppPermission
 import io.github.kmpdevicehub.core.ProjectApps
 import io.github.kmpdevicehub.core.ToolPaths
 import io.github.kmpdevicehub.core.DeviceKind
@@ -66,8 +68,8 @@ class DevicesPanelTest : BasePlatformTestCase() {
 
     /** Records commands and answers like adb/simctl would for a healthy app. */
     private class RecordingRunner : CommandRunner {
-        val ran = java.util.Collections.synchronizedList(mutableListOf<String>())
-        val spawned = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val ran = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val spawned = java.util.concurrent.CopyOnWriteArrayList<String>()
         override fun run(command: List<String>, timeoutSeconds: Long): CommandResult {
             val c = command.joinToString(" ")
             ran += c
@@ -75,6 +77,9 @@ class DevicesPanelTest : BasePlatformTestCase() {
                 "pm path" in c -> CommandResult(0, "package:/data/app/base.apk", "")
                 "monkey" in c -> CommandResult(0, "Events injected: 1", "")
                 "pm clear" in c -> CommandResult(0, "Success", "")
+                "cmd uimode night" == c.substringAfter("shell ") -> CommandResult(0, "Night mode: no", "")
+                "dumpsys package" in c -> CommandResult(0, "requested permissions:\n  android.permission.CAMERA\nruntime permissions:\n  android.permission.CAMERA: granted=false, flags=[ ]\n", "")
+                "am start -W" in c -> CommandResult(0, "Status: ok", "")
                 else -> CommandResult(0, "", "")
             }
         }
@@ -112,6 +117,41 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue("step 8: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.installedText.startsWith("Start Pixel Tablet") })
         panel.startSelected()
         assertTrue("step 9: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { runner.spawned.any { it == "/sdk/emulator -avd Pixel_Tablet" } })
+    }
+
+    fun `test settings, permissions, links and screenshot tabs run the right commands`() {
+        val runner = RecordingRunner()
+        val tools = ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun")
+        val shots = java.nio.file.Files.createTempDirectory("shots").toFile()
+        val panel = DevicesPanel(
+            project, testRootDisposable, load = { sample }, actions = DeviceActions(runner, tools), settings = DeviceSettings(runner, tools),
+            screenshotDir = shots, detectApps = { ProjectApps(listOf("org.example.project"), listOf("org.example.project.KotlinProject")) },
+            autoRefresh = false,
+        )
+        assertTrue(waitFor { panel.rowCount == 9 })
+        panel.select("emulator-5554")
+        assertTrue(waitFor { panel.currentAppId == "org.example.project" })
+        assertTrue("camera state: '${panel.permissionStateText(AppPermission.CAMERA)}'", waitFor { panel.permissionStateText(AppPermission.CAMERA) == "Denied" })
+        assertEquals("Not requested", panel.permissionStateText(AppPermission.MICROPHONE))
+
+        panel.toggleDarkMode(true)
+        assertTrue(waitFor { runner.ran.any { it == "/sdk/adb -s emulator-5554 shell cmd uimode night yes" } })
+
+        panel.grant(AppPermission.CAMERA)
+        assertTrue(waitFor { runner.ran.any { it == "/sdk/adb -s emulator-5554 shell pm grant org.example.project android.permission.CAMERA" } })
+
+        panel.openLink("myapp://orders/42")
+        assertTrue(waitFor { runner.ran.any { it.endsWith("-d myapp://orders/42 org.example.project") } })
+
+        panel.takeScreenshot()
+        assertTrue(waitFor { runner.ran.any { it.startsWith("/sdk/adb -s emulator-5554 pull /data/local/tmp/kmpdevicehub-screenshot.png ${shots.path}/Medium Phone API 37.0 ") } })
+        assertTrue(waitFor { panel.lastResult?.message?.startsWith("Screenshot saved") == true })
+
+        panel.select("UDID-1")
+        assertTrue(waitFor { panel.currentAppId == "org.example.project.KotlinProject" })
+        assertTrue(waitFor { panel.permissionStateText(AppPermission.CAMERA) == "Not on simulator" })
+        panel.toggleDarkMode(true)
+        assertTrue(waitFor { runner.ran.any { it == "/usr/bin/xcrun simctl ui UDID-1 appearance dark" } })
     }
 
     /** Renders build/devices-panel.png for a visual check. */
