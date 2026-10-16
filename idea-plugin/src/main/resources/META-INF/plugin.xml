@@ -1,0 +1,22 @@
+<idea-plugin>
+    <id>io.github.khubaibkhan4.kmpdevicehub</id>
+    <name>KMP Device Hub</name>
+    <vendor>Khubaib Khan</vendor>
+    <description><![CDATA[
+    <p><b>Every Android device, emulator and iOS simulator in one panel.</b> Built for Kotlin Multiplatform and
+    Compose Multiplatform developers who test on Android and iOS every day.</p>
+    <ul>
+      <li>See running and stopped Android emulators, connected phones and iOS simulators together.</li>
+      <li>Clear status for each device: running, booting, waiting for USB authorization or offline.</li>
+      <li>Works with the tools you already have: the Android SDK and, on macOS, Xcode.</li>
+    </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="KMP Devices" anchor="right" icon="/icons/devicesToolWindow.svg"
+                    factoryClass="io.github.kmpdevicehub.idea.DevicesToolWindowFactory"/>
+        <notificationGroup id="KMP Device Hub" displayType="BALLOON"/>
+    </extensions>
+</idea-plugin>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="2" y1="2" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7F52FF"/>
+      <stop offset="0.55" stop-color="#5B5BF0"/>
+      <stop offset="1" stop-color="#1E88E5"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="36" height="36" rx="9" fill="url(#bg)"/>
+  <!-- iOS phone, behind -->
+  <rect x="17.5" y="8" width="13" height="22" rx="3.2" fill="#E3E8EF" stroke="#FFFFFF" stroke-width="1.5"/>
+  <rect x="19.5" y="11" width="9" height="15" rx="1.4" fill="#B0BEC5"/>
+  <rect x="21.5" y="9.3" width="5" height="1.2" rx="0.6" fill="#455A64"/>
+  <!-- Android phone, in front -->
+  <rect x="9.5" y="11" width="13" height="22" rx="3.2" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1.5"/>
+  <rect x="11.5" y="14" width="9" height="15" rx="1.4" fill="#3DDC84"/>
+  <circle cx="16" cy="12.5" r="0.8" fill="#2E7D32"/>
+  <!-- live status dot -->
+  <circle cx="30.5" cy="29.5" r="4" fill="#3DDC84" stroke="#FFFFFF" stroke-width="1.6"/>
+</svg>
