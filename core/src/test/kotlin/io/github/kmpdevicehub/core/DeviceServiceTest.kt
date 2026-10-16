@@ -33,6 +33,7 @@ class DeviceServiceTest {
         R58M123ABC             unauthorized usb:1-1 transport_id:2
         adb-R5CT90._adb-tls-connect._tcp device product:o1sxxx model:SM_G991B device:o1s transport_id:3
         192.168.1.40:5555      offline transport_id:5
+        emulator-5558          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:6
     """.trimIndent()
 
     private val emulatorProps = """
@@ -70,6 +71,7 @@ class DeviceServiceTest {
         "$adb -s emulator-5554 shell getprop" to ok(emulatorProps),
         "$adb -s emulator-5556 shell getprop" to ok(bootingEmulatorProps),
         "$adb -s adb-R5CT90._adb-tls-connect._tcp shell getprop" to ok(phoneProps),
+        "$adb -s emulator-5558 shell getprop" to CommandResult(1, "", "error: closed"),
         "$emulator -list-avds" to ok("INFO    | Storing crashdata in: /tmp/foo\n" + resource("emulator-list-avds.txt")),
         "$xcrun simctl list devices -j" to ok(resource("simctl-list.json")),
     )
@@ -95,6 +97,7 @@ class DeviceServiceTest {
 
         assertEquals(DeviceState.UNAUTHORIZED, byId.getValue("R58M123ABC").state)
         assertEquals(DeviceState.OFFLINE, byId.getValue("192.168.1.40:5555").state)
+        assertEquals(DeviceState.OFFLINE, byId.getValue("emulator-5558").state, "an emulator that stopped answering isn't 'running'")
 
         // The running AVD isn't listed twice; the other one shows as stopped, with its API level from the AVD config.
         assertNull(byId["avd:Medium_Phone_API_37.0"])

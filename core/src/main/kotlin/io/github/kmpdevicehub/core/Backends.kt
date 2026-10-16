@@ -50,11 +50,16 @@ class AndroidBackend(
                 if (maker == null || model.startsWith(maker, ignoreCase = true)) model else "$maker $model"
             }
         }
-        val booted = props["sys.boot_completed"] == "1" || props.isEmpty()
+        // No properties at all: the device stopped answering, typically while an emulator shuts down.
+        val state = when {
+            props.isEmpty() -> DeviceState.OFFLINE
+            props["sys.boot_completed"] == "1" -> DeviceState.RUNNING
+            else -> DeviceState.BOOTING
+        }
         return Device(
             id = entry.serial, name = name, platform = DevicePlatform.ANDROID,
             kind = if (emulator) DeviceKind.EMULATOR else DeviceKind.PHYSICAL,
-            state = if (booted) DeviceState.RUNNING else DeviceState.BOOTING,
+            state = state,
             osVersion = props["ro.build.version.release"], apiLevel = props["ro.build.version.sdk"]?.toIntOrNull(), avdName = avd,
         )
     }

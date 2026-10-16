@@ -3,7 +3,12 @@ package io.github.kmpdevicehub.idea
 import com.intellij.openapi.wm.ToolWindowEP
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import io.github.kmpdevicehub.core.CommandResult
+import io.github.kmpdevicehub.core.CommandRunner
 import io.github.kmpdevicehub.core.Device
+import io.github.kmpdevicehub.core.DeviceActions
+import io.github.kmpdevicehub.core.ProjectApps
+import io.github.kmpdevicehub.core.ToolPaths
 import io.github.kmpdevicehub.core.DeviceKind
 import io.github.kmpdevicehub.core.DeviceList
 import io.github.kmpdevicehub.core.DevicePlatform
@@ -17,7 +22,7 @@ class DevicesPanelTest : BasePlatformTestCase() {
             Device("emulator-5554", "Medium Phone API 37.0", DevicePlatform.ANDROID, DeviceKind.EMULATOR, DeviceState.RUNNING, "17", 37, "Medium_Phone_API_37.0"),
             Device("UDID-1", "iPhone 18 Pro", DevicePlatform.IOS, DeviceKind.SIMULATOR, DeviceState.RUNNING, "27.0"),
             Device("R58M", "Samsung SM-G991B", DevicePlatform.ANDROID, DeviceKind.PHYSICAL, DeviceState.UNAUTHORIZED),
-            Device("avd:Pixel_Tablet", "Pixel Tablet", DevicePlatform.ANDROID, DeviceKind.EMULATOR, DeviceState.STOPPED, apiLevel = 36),
+            Device("avd:Pixel_Tablet", "Pixel Tablet", DevicePlatform.ANDROID, DeviceKind.EMULATOR, DeviceState.STOPPED, apiLevel = 36, avdName = "Pixel_Tablet"),
             Device("UDID-2", "iPad Air 11-inch (M4)", DevicePlatform.IOS, DeviceKind.SIMULATOR, DeviceState.STOPPED, "27.0"),
             Device("UDID-3", "iPhone 17e", DevicePlatform.IOS, DeviceKind.SIMULATOR, DeviceState.STOPPED, "27.0"),
         ),
@@ -59,13 +64,67 @@ class DevicesPanelTest : BasePlatformTestCase() {
         println("LIVE ${panel.lastList.devices.size} devices, problems=${panel.lastList.problems}")
     }
 
+    /** Records commands and answers like adb/simctl would for a healthy app. */
+    private class RecordingRunner : CommandRunner {
+        val ran = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val spawned = java.util.Collections.synchronizedList(mutableListOf<String>())
+        override fun run(command: List<String>, timeoutSeconds: Long): CommandResult {
+            val c = command.joinToString(" ")
+            ran += c
+            return when {
+                "pm path" in c -> CommandResult(0, "package:/data/app/base.apk", "")
+                "monkey" in c -> CommandResult(0, "Events injected: 1", "")
+                "pm clear" in c -> CommandResult(0, "Success", "")
+                else -> CommandResult(0, "", "")
+            }
+        }
+        override fun spawn(command: List<String>) { spawned += command.joinToString(" ") }
+    }
+
+    fun `test app id is detected per platform and actions run on the selected device`() {
+        val runner = RecordingRunner()
+        val actions = DeviceActions(runner, ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun"))
+        var confirmed = 0
+        val panel = DevicesPanel(
+            project, testRootDisposable, load = { sample }, actions = actions,
+            detectApps = { ProjectApps(listOf("org.example.project"), listOf("org.example.project.KotlinProject")) },
+            autoRefresh = false, confirm = { _, _ -> confirmed++; true },
+        )
+        assertTrue("step 1: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.rowCount == 9 })
+
+        panel.select("emulator-5554")
+        assertTrue("step 2: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.currentAppId == "org.example.project" })
+        assertTrue("step 3: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.installedText.startsWith("✓ Installed") })
+        panel.clickLaunch()
+        assertTrue("step 4: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.lastResult?.message?.startsWith("Launched org.example.project") == true })
+        assertTrue(runner.ran.any { it.contains("-s emulator-5554 shell monkey -p org.example.project") })
+
+        panel.clickClearData()
+        assertTrue("step 5: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.lastResult?.message?.startsWith("Cleared org.example.project data") == true })
+        assertEquals(1, confirmed)
+
+        panel.select("UDID-1")
+        assertTrue("step 6: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.currentAppId == "org.example.project.KotlinProject" })
+        panel.clickLaunch()
+        assertTrue("step 7: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { runner.ran.any { it == "/usr/bin/xcrun simctl launch UDID-1 org.example.project.KotlinProject" } })
+
+        panel.select("avd:Pixel_Tablet")
+        assertTrue("step 8: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { panel.installedText.startsWith("Start Pixel Tablet") })
+        panel.startSelected()
+        assertTrue("step 9: app='${panel.currentAppId}' installed='${panel.installedText}' result='${panel.lastResult}' ran=${runner.ran.takeLast(3)}", waitFor { runner.spawned.any { it == "/sdk/emulator -avd Pixel_Tablet" } })
+    }
+
     /** Renders build/devices-panel.png for a visual check. */
     fun `test render snapshot`() {
-        val panel = DevicesPanel(project, testRootDisposable, load = { sample }, autoRefresh = false)
+        val panel = DevicesPanel(project, testRootDisposable, load = { sample }, autoRefresh = false,
+            detectApps = { ProjectApps(listOf("org.example.project"), listOf("org.example.project.KotlinProject")) },
+            actions = DeviceActions(RecordingRunner(), ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun")))
         assertTrue(waitFor { panel.rowCount == 9 })
-        panel.setSize(420, 640)
+        panel.select("emulator-5554")
+        assertTrue(waitFor { panel.installedText.startsWith("✓") })
+        panel.setSize(440, 760)
         com.intellij.util.ui.UIUtil.uiTraverser(panel).forEach { it.doLayout() }
-        val image = java.awt.image.BufferedImage(840, 1280, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+        val image = java.awt.image.BufferedImage(880, 1520, java.awt.image.BufferedImage.TYPE_INT_ARGB)
         val g = image.createGraphics()
         g.scale(2.0, 2.0)
         panel.printAll(g)

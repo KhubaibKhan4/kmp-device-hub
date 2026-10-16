@@ -12,12 +12,16 @@ For Kotlin Multiplatform and Compose Multiplatform developers who test on Androi
 
 ## Status
 
-Early development. Milestone 1 is done: a **KMP Devices** tool window that lists running and stopped Android
-emulators, connected phones and iOS simulators together, with clear status and live updates.
+Early development.
 
-Coming next: boot and shut down devices, app actions (launch, kill, clear data, uninstall), permissions,
-dark mode, text size, deep links and screenshots, on both platforms. A Pro tier adds actions on all devices at
-once, test presets, a deep link library, screen recording and a push notification tester.
+- **Milestone 1 (done):** a **KMP Devices** tool window listing running and stopped Android emulators, connected
+  phones and iOS simulators together, with clear status and live updates.
+- **Milestone 2 (done):** start and shut down emulators and simulators (double-click to start); your app's
+  Android `applicationId` and iOS bundle id are detected from the project; **Launch**, **Stop**, **Clear data** and
+  **Uninstall** on the selected device, with confirmation before anything destructive.
+
+Coming next: permissions, dark mode, text size, deep links and screenshots on both platforms. A Pro tier adds
+actions on all devices at once, test presets, a deep link library, screen recording and a push notification tester.
 
 ## How it works
 
