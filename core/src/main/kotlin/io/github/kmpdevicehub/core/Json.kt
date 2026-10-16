@@ -4,12 +4,74 @@ package io.github.kmpdevicehub.core
  * Minimal JSON reader for simctl and adb output. The engine stays dependency-free so it can be loaded
  * inside Gradle and inside the IDE without fighting over kotlinx-serialization versions.
  */
-internal object Json {
+object Json {
     fun parse(text: String): Any? = Parser(text).run {
         val value = readValue()
         skipWhitespace()
         require(pos == text.length) { "Trailing content at $pos" }
         value
+    }
+
+    /** Writes maps, lists, strings, numbers, booleans and null. [indent] > 0 pretty-prints. */
+    fun write(value: Any?, indent: Int = 0): String = StringBuilder().also { write(it, value, indent, 0) }.toString()
+
+    /** Pretty-printed JSON, or null when [text] isn't JSON. */
+    fun pretty(text: String): String? {
+        val trimmed = text.trim()
+        if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return null
+        return runCatching { write(parse(trimmed), indent = 2) }.getOrNull()
+    }
+
+    fun quote(s: String): String = StringBuilder().also { quote(it, s) }.toString()
+
+    private fun write(out: StringBuilder, value: Any?, indent: Int, depth: Int) {
+        fun newline(d: Int) { if (indent > 0) out.append('\n').append(" ".repeat(indent * d)) }
+        when (value) {
+            null -> out.append("null")
+            is String -> quote(out, value)
+            is Boolean, is Int, is Long -> out.append(value.toString())
+            is Number -> value.toDouble().let { if (it.isFinite()) out.append(if (it == Math.floor(it) && kotlin.math.abs(it) < 1e15) it.toLong().toString() else it.toString()) else out.append("null") }
+            is Map<*, *> -> {
+                if (value.isEmpty()) { out.append("{}"); return }
+                out.append('{')
+                value.entries.forEachIndexed { i, (k, v) ->
+                    if (i > 0) out.append(',')
+                    newline(depth + 1)
+                    quote(out, k.toString())
+                    out.append(if (indent > 0) ": " else ":")
+                    write(out, v, indent, depth + 1)
+                }
+                newline(depth)
+                out.append('}')
+            }
+            is Iterable<*> -> {
+                val items = value.toList()
+                if (items.isEmpty()) { out.append("[]"); return }
+                out.append('[')
+                items.forEachIndexed { i, v ->
+                    if (i > 0) out.append(',')
+                    newline(depth + 1)
+                    write(out, v, indent, depth + 1)
+                }
+                newline(depth)
+                out.append(']')
+            }
+            else -> quote(out, value.toString())
+        }
+    }
+
+    private fun quote(out: StringBuilder, s: String) {
+        out.append('"')
+        for (c in s) when {
+            c == '"' -> out.append("\\\"")
+            c == '\\' -> out.append("\\\\")
+            c == '\n' -> out.append("\\n")
+            c == '\r' -> out.append("\\r")
+            c == '\t' -> out.append("\\t")
+            c < ' ' -> out.append("\\u%04x".format(c.code))
+            else -> out.append(c)
+        }
+        out.append('"')
     }
 
     private class Parser(val text: String) {

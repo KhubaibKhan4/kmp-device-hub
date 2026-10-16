@@ -25,6 +25,7 @@ object ProLicense {
         "Screen recording",
         "Push notification tester",
         "Simulated location, network conditions and a clean status bar",
+        "Network Inspector: mock responses, fail requests, add latency, export HAR",
     )
 
     /** The Marketplace product code, or null in the free early-access build. */

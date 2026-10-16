@@ -10,6 +10,8 @@
       <li>Launch, stop, clear data and uninstall your app; its Android and iOS ids are found in your project.</li>
       <li>Grant and revoke permissions, switch dark mode and text size, and run your app in another language (RTL too).</li>
       <li>Open deep links, take screenshots, and pair Android phones over Wi-Fi.</li>
+      <li><b>Network Inspector</b>: every API call your app makes (Ktor or OkHttp), with headers, bodies, a JSON tree,
+          errors, timings, throughput and device connectivity. Copy any call as cURL.</li>
     </ul>
     <p><b>Pro</b> (free trial on JetBrains Marketplace):</p>
     <ul>
@@ -17,6 +19,7 @@
       <li>Test presets: dark mode + largest text, right-to-left, slow network, offline, store screenshots, or your own.</li>
       <li>Screen recording, a push notification tester and a deep link library.</li>
       <li>Simulated location, Android emulator network conditions and a clean 9:41 status bar.</li>
+      <li>Mock responses, fail requests or add latency from the Network Inspector; export HAR files.</li>
     </ul>
     <p>Works with the tools you already have: the Android SDK and, on macOS, Xcode.</p>
     ]]></description>
@@ -26,6 +29,9 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="KMP Devices" anchor="right" icon="/icons/devicesToolWindow.svg"
                     factoryClass="io.github.kmpdevicehub.idea.DevicesToolWindowFactory"/>
+        <toolWindow id="KMP Network" anchor="bottom" icon="/icons/networkToolWindow.svg"
+                    factoryClass="io.github.kmpdevicehub.idea.NetworkToolWindowFactory"/>
+        <postStartupActivity implementation="io.github.kmpdevicehub.idea.NetworkInspectorStartup"/>
         <notificationGroup id="KMP Device Hub" displayType="BALLOON"/>
     </extensions>
 </idea-plugin>

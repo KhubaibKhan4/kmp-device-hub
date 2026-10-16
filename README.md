@@ -29,8 +29,40 @@ Early development.
   **simulated location**; Android emulator **network conditions** (LTE, 3G, EDGE, GPRS, offline); a **clean 9:41
   status bar** for store screenshots.
 
-Coming next: a **Network Inspector** for your app's API calls (requests, JSON responses, errors, connectivity and
-bandwidth), then unified logs and an app data explorer.
+- **Milestone 5 (done):** the **Network Inspector**, a **KMP Network** tool window showing every HTTP call your app
+  makes (Ktor on Android/iOS/JVM, or OkHttp/Retrofit on Android). It covers method, URL, status, timing, size, request
+  and response headers and bodies (pretty-printed), a JSON tree, failures, totals, a throughput sparkline and device
+  connectivity. Copy any call as cURL. **Pro:** mock responses, fail requests or add latency (from a rule or
+  right-click → *Mock This Response*), and export HAR.
+
+Coming next: unified logs (Logcat + simulator log), an app data explorer, installing APK/.app files and more device
+simulation.
+
+## Network Inspector setup
+
+Add the library to your app's debug builds, then install it in your HTTP client:
+
+```kotlin
+// build.gradle.kts — commonMain (or debugImplementation in an Android-only app)
+implementation("io.github.khubaibkhan4:devicehub-network:0.1.0")
+
+// Ktor (Android, iOS, JVM)
+val client = HttpClient {
+    install(DeviceHubNetwork) { enabled = isDebugBuild }
+}
+
+// OkHttp / Retrofit (Android)
+OkHttpClient.Builder().addInterceptor(DeviceHubInterceptor { enabled = BuildConfig.DEBUG })
+```
+
+The library connects to the IDE on `127.0.0.1:38383`. iOS simulators reach it directly, and Android devices and
+emulators reach it through `adb reverse`, which the plugin sets up. Bodies over 128 KB and binary content are reported
+by size only. Use `redactHeaders = setOf("Authorization")` to keep secrets out of the IDE.
+
+**Only enable it in debug builds**: it sends your app's traffic, headers included, to whatever listens on that port.
+
+Until it's on Maven Central, publish it locally with `./gradlew :network:publishToMavenLocal` and add `mavenLocal()`
+to your repositories.
 
 ## Pro
 
@@ -49,6 +81,7 @@ Bump `devicehub.releaseDate` / `devicehub.releaseVersion` in `gradle.properties`
 | Module | What it is |
 |---|---|
 | [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices, and runs every device action, setting, simulation and preset through them. Every command goes through a `CommandRunner`, faked in tests. |
+| [`network`](network) | `devicehub-network`, the Kotlin Multiplatform library (JVM/Android, iOS) apps add to send their HTTP calls to the Network Inspector: a Ktor client plugin and an OkHttp interceptor. |
 | [`idea-plugin`](idea-plugin) | The KMP Devices tool window for Android Studio and IntelliJ IDEA 2025.1+. |
 
 Requirements: the Android SDK for Android devices; macOS with Xcode for iOS simulators.

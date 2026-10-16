@@ -18,3 +18,7 @@
 - Pro: deep link library, including links declared in AndroidManifest.xml and Info.plist.
 - Pro: simulated location, Android emulator network conditions and a clean 9:41 status bar.
 - Deep links with `&` or spaces now open correctly on Android.
+- Network Inspector: a KMP Network tool window listing every HTTP call your app makes, with headers, pretty-printed bodies, a JSON tree, errors, timings, totals, throughput and device connectivity.
+- devicehub-network library: a Ktor client plugin (Android, iOS, JVM) and an OkHttp interceptor; Android devices connect automatically through adb reverse.
+- Copy any call as cURL, URL or response body.
+- Pro: mock responses, fail requests or add latency with rules; export HAR.
