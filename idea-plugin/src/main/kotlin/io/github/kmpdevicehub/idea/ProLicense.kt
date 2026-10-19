@@ -16,7 +16,7 @@ import java.awt.Component
  */
 object ProLicense {
     const val PLUGIN_ID = "io.github.khubaibkhan4.kmpdevicehub"
-    private const val MARKETPLACE_URL = "https://plugins.jetbrains.com/search?search=KMP%20Device%20Hub"
+    private const val MARKETPLACE_URL = "https://plugins.jetbrains.com/plugin/35272-kmp-device-hub"
 
     val features = listOf(
         "Actions on all running devices at once",

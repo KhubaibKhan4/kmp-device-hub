@@ -8,6 +8,9 @@
 
 For Kotlin Multiplatform and Compose Multiplatform developers who test on Android and iOS every day.
 
+[![Get from JetBrains Marketplace](https://img.shields.io/badge/Get%20from-JetBrains%20Marketplace-7F52FF?logo=jetbrains&logoColor=white)](https://plugins.jetbrains.com/plugin/35272-kmp-device-hub)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/35272?label=downloads)](https://plugins.jetbrains.com/plugin/35272-kmp-device-hub)
+[![Rating](https://img.shields.io/jetbrains/plugin/r/rating/35272)](https://plugins.jetbrains.com/plugin/35272-kmp-device-hub/reviews)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.khubaibkhan4/devicehub-network?label=devicehub-network)](https://central.sonatype.com/artifact/io.github.khubaibkhan4/devicehub-network)
 ![Android Studio & IntelliJ IDEA 2025.1+](https://img.shields.io/badge/Android%20Studio%20%26%20IntelliJ-2025.1%2B-7F52FF)
 ![Platforms](https://img.shields.io/badge/devices-Android%20%7C%20iOS%20simulator-1E88E5)
@@ -19,7 +22,8 @@ For Kotlin Multiplatform and Compose Multiplatform developers who test on Androi
 ## Install
 
 In Android Studio or IntelliJ IDEA (2025.1 or newer): **Settings → Plugins → Marketplace**, search for
-**KMP Device Hub**, install, and restart. Then open the **KMP Devices** tool window (right) and **KMP Network**
+**KMP Device Hub**, install, and restart. Or install it from its
+[JetBrains Marketplace page](https://plugins.jetbrains.com/plugin/35272-kmp-device-hub). Then open the **KMP Devices** tool window (right) and **KMP Network**
 (bottom).
 
 You need the Android SDK for Android devices, and macOS with Xcode for iOS simulators. Both are found automatically,
