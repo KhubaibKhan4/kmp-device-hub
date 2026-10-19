@@ -1,0 +1,44 @@
+<p><b>KMP Device Hub</b> puts every Android emulator, connected Android phone and iOS simulator in one panel, and adds a Network Inspector for your Kotlin Multiplatform app.</p>
+
+<h3>1. Install</h3>
+<ol>
+  <li>Use <b>Android Studio</b> or <b>IntelliJ IDEA</b>, version 2025.1 or newer.</li>
+  <li>Open <b>Settings</b> (<b>Android Studio → Settings</b> on macOS), then <b>Plugins → Marketplace</b>.</li>
+  <li>Search for <b>KMP Device Hub</b>, click <b>Install</b>, and restart the IDE.</li>
+</ol>
+
+<h3>2. Make sure the device tools are available</h3>
+<ul>
+  <li><b>Android:</b> the Android SDK with Platform-Tools (adb) and the Emulator. The plugin finds them through your project's <code>local.properties</code> (<code>sdk.dir</code>), <code>ANDROID_HOME</code>, or the default Android Studio location.</li>
+  <li><b>iOS:</b> macOS with Xcode and at least one iOS simulator runtime installed.</li>
+  <li>Physical Android phones need <b>USB debugging</b> turned on. To connect over Wi-Fi, use <b>Wi-Fi Debugging</b> in the plugin's toolbar.</li>
+</ul>
+<p>If something is missing, the panel tells you what and how to fix it. There's nothing else to configure.</p>
+
+<h3>3. Use the KMP Devices panel</h3>
+<ol>
+  <li>Open the <b>KMP Devices</b> tool window on the right side of the IDE.</li>
+  <li>Select a device. Double-click a stopped emulator or simulator, or click <b>Start</b>, to boot it.</li>
+  <li>On the <b>App</b> tab, your Android <code>applicationId</code> and iOS bundle id are filled in from your project. <b>Launch</b>, <b>Stop</b>, <b>Clear data</b> or <b>Uninstall</b> your app.</li>
+  <li>Use the other tabs to switch <b>dark mode</b>, <b>text size</b> and <b>app language</b> (including right-to-left), manage <b>permissions</b>, open <b>deep links</b>, <b>simulate</b> location and network conditions, send <b>push notifications</b>, and apply <b>test presets</b>.</li>
+  <li>Turn on <b>All running devices</b> to apply an action to every running device at once.</li>
+</ol>
+
+<h3>4. Optional: the Network Inspector</h3>
+<p>To see your app's HTTP calls in the <b>KMP Network</b> tool window (at the bottom), add the small debug library and install it in your HTTP client:</p>
+<pre><code>// build.gradle.kts (commonMain, or debugImplementation in an Android-only app)
+implementation("io.github.khubaibkhan4:devicehub-network:0.1.0")
+
+// Ktor (Android, iOS, JVM)
+HttpClient { install(DeviceHubNetwork) { enabled = isDebugBuild } }
+
+// OkHttp / Retrofit (Android)
+OkHttpClient.Builder().addInterceptor(DeviceHubInterceptor { enabled = BuildConfig.DEBUG })</code></pre>
+<p>Run your app on an emulator or simulator and its calls appear in <b>KMP Network</b>. Android devices connect through <code>adb reverse</code>, which the plugin sets up for you. Enable the library <b>only in debug builds</b>.</p>
+
+<h3>Complementary and conflicting plugins</h3>
+<ul>
+  <li><b>Complementary:</b> the <b>Kotlin Multiplatform</b> plugin by JetBrains (project wizard and run configurations), and <b>KMP Dependency Hub</b> (adds KMP libraries to the right source sets).</li>
+  <li>It works alongside Android Studio's built-in <b>Device Manager</b> and <b>Running Devices</b>, using the same adb and emulators.</li>
+  <li><b>No known conflicts.</b> The Network Inspector uses port <code>38383</code> on your machine. If another tool uses that port, the KMP Network window says so.</li>
+</ul>

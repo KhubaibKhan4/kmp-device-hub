@@ -1,0 +1,30 @@
+<h2>Privacy Policy: KMP Device Hub</h2>
+<p><i>Effective October 19, 2026.</i></p>
+<p>This policy covers the <b>KMP Device Hub</b> plugin for JetBrains IDEs and the <b>devicehub-network</b> library (<code>io.github.khubaibkhan4:devicehub-network</code>), both published by Khubaib Khan.</p>
+<h3>Summary</h3>
+<p>KMP Device Hub does <b>not</b> collect, transmit, sell or share any personal data. It has no analytics, telemetry, crash reporting or advertising. Everything it does happens on your computer and on the devices and simulators you connect to it.</p>
+<h3>What the plugin does on your computer</h3>
+<ul>
+  <li><b>Device tools.</b> To list and control devices, the plugin runs the Android SDK tools (<code>adb</code>, <code>emulator</code>) and, on macOS, Xcode's <code>xcrun simctl</code>. These run locally and only on the devices you choose.</li>
+  <li><b>Project files.</b> It reads your project's build files, <code>AndroidManifest.xml</code>, <code>Info.plist</code> and Xcode configuration to find your app's id and deep links. Nothing is uploaded.</li>
+  <li><b>Settings you save.</b> Your chosen app ids, saved deep links, test presets and Network Inspector rules are stored in the IDE's own settings on your computer.</li>
+  <li><b>Files you create.</b> Screenshots are saved to <code>~/Pictures/KMP Device Hub</code>, screen recordings to <code>~/Movies/KMP Device Hub</code>, and HAR exports to the location you pick.</li>
+  <li><b>Connectivity check.</b> To show whether a device is online, the plugin sends one standard <code>ping</code> to <code>8.8.8.8</code> (Google Public DNS) from the device, or from your Mac for iOS simulators. No data is attached.</li>
+</ul>
+<h3>Network Inspector and the devicehub-network library</h3>
+<ul>
+  <li>The plugin listens only on <b><code>127.0.0.1:38383</code></b> (your own computer), never on an outside address.</li>
+  <li>When you add <code>devicehub-network</code> to your app, it sends a description of your app's HTTP calls (method, URL, headers, bodies up to 128 KB, status, timing) <b>only to that local address</b>. Android devices reach it through <code>adb reverse</code> over the USB or emulator connection. iOS simulators reach it directly on your Mac.</li>
+  <li>Captured calls are kept <b>in memory only</b> (at most 2,000) and disappear when the IDE closes, unless you export them.</li>
+  <li>You control what's captured: <code>redactHeaders</code> hides header values such as <code>Authorization</code>, and <code>enabled = false</code> turns the library off. <b>Only enable it in debug builds</b>, because it forwards your app's traffic to whatever listens on that port of the device.</li>
+</ul>
+<h3>Licensing and purchases</h3>
+<p>If you start a trial or buy a Pro license, JetBrains handles it through JetBrains Marketplace and your JetBrains Account, under <a href="https://www.jetbrains.com/legal/docs/privacy/privacy/">JetBrains' privacy policy</a>. The plugin only asks the IDE whether a license is present. It never sees your payment or account details.</p>
+<h3>Third parties</h3>
+<p>The plugin itself sends nothing to third parties. Opening the Marketplace page (for example, "Start Free Trial") opens JetBrains' website in your browser.</p>
+<h3>Children</h3>
+<p>The plugin is a developer tool and isn't directed at children.</p>
+<h3>Changes</h3>
+<p>If this policy changes, the new version will be published with the plugin and on its JetBrains Marketplace page, with a new effective date.</p>
+<h3>Contact</h3>
+<p>Questions about this policy: contact the vendor (Khubaib Khan) through the plugin's JetBrains Marketplace page.</p>
