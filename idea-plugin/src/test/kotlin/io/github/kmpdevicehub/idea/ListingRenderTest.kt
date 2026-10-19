@@ -165,6 +165,8 @@ class ListingRenderTest : BasePlatformTestCase() {
     }
 
     fun `test render listing panels`() {
+        // Marketing images only; large off-screen renders aren't worth CI time or memory.
+        if (System.getenv("CI") != null) return
         // The plugin icon, rasterized by the IDE's own SVG renderer.
         val icon = com.intellij.openapi.util.IconLoader.getIcon("/META-INF/pluginIcon.svg", DevicesPanel::class.java.classLoader)
         val big = com.intellij.util.IconUtil.scale(icon, null, 512f / icon.iconWidth)

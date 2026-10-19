@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+
+- New KMP App Data window: browse your app's private files on Android (debug builds, through run-as) and iOS simulators; read SharedPreferences and NSUserDefaults as a table; open SQLite databases (Room, SQLDelight, Core Data) with a table view and read-only SQL; view text, JSON and images; download or delete files.
+- Databases are read from a snapshot that includes the WAL, so recent Room writes show up.
+- Clear messages for release builds, system apps and missing files.
+
 ## 0.2.0
 
 - New KMP Logs window: your app's logs from Android (logcat, filtered to your app and following restarts) and iOS simulators (the unified log, or the app's println output), with level filter, search and color.

@@ -137,6 +137,11 @@ tasks.named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
     jvmArgs("-Didea.is.internal=true", "-Dkmpdevicehub.pro=true")
 }
 
+// The IDE test fixture plus panel renders need more than the default heap on CI runners.
+tasks.named<Test>("test") {
+    maxHeapSize = "2g"
+}
+
 tasks.named<Zip>("buildPlugin") {
     archiveBaseName.set("kmp-device-hub")
 }

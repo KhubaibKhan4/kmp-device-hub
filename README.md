@@ -72,6 +72,13 @@ The **KMP Logs** window streams your app's logs: Android's logcat filtered to yo
 simulators the unified log for your app, or its stdout so Kotlin/Native `println` shows up too. Filter by level, search,
 and copy what you see.
 
+### App data explorer
+
+The **KMP App Data** window opens your app's private data: files on Android (debug builds, through `run-as`, like
+Android Studio's Device Explorer) and in iOS simulator containers; SharedPreferences and NSUserDefaults as key / type /
+value tables; and SQLite databases (Room, SQLDelight, Core Data) with a table view and read-only SQL on a snapshot that
+includes the WAL. Text and JSON are pretty-printed, images previewed, and files can be downloaded or deleted.
+
 ### Install builds
 
 Drop an `.apk` (or split APKs) or a simulator `.app` on any device in the list, or use **Install App…**, which opens at
@@ -125,13 +132,13 @@ It's on Maven Central (`mavenCentral()`), so no extra repository is needed. To t
 Everything is free during early access. Later, a Pro plan through JetBrains Marketplace (with a free trial) will cover
 the power features: all-devices actions, presets, screen recording, the push tester, the deep link library, location,
 network conditions, battery, rotation, biometrics, media and the clean status bar, and the Network Inspector's mocking
-and HAR export. Device control, installing builds, settings, permissions, logs and the Network Inspector itself stay
-free.
+and HAR export. Device control, installing builds, settings, permissions, logs, the app data explorer and the Network
+Inspector itself stay free.
 
 ## Roadmap
 
-- App data explorer: files, preferences and SQLite databases on the device
 - Logs: export, and a crash view that highlights the stack trace
+- App data: edit preferences and DataStore files in place
 - Physical iPhones (install, logs, screenshots)
 
 ## How it works
@@ -140,7 +147,7 @@ free.
 |---|---|
 | [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices, and runs every device action, setting, simulation and preset through them. Every command goes through a `CommandRunner`, faked in tests. |
 | [`network`](network) | `devicehub-network`, the Kotlin Multiplatform library (JVM/Android, iOS) apps add to send their HTTP calls to the Network Inspector: a Ktor client plugin and an OkHttp interceptor. |
-| [`idea-plugin`](idea-plugin) | The KMP Devices, KMP Network and KMP Logs tool windows for Android Studio and IntelliJ IDEA 2025.1+. |
+| [`idea-plugin`](idea-plugin) | The KMP Devices, KMP Network, KMP Logs and KMP App Data tool windows for Android Studio and IntelliJ IDEA 2025.1+. |
 | [`samples/network-demo`](samples/network-demo) | A small Android + iOS app for trying the Network Inspector. |
 
 ## Development

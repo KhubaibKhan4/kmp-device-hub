@@ -28,6 +28,9 @@
 <h3>Logs</h3>
 <p>Open <b>KMP Logs</b> (at the bottom), pick a running device and your app, and press <b>Start</b>. On iOS, tick <b>Include println</b> to see Kotlin/Native <code>println</code> output (this relaunches the app).</p>
 
+<h3>App data</h3>
+<p>Open <b>KMP App Data</b> (at the bottom), pick a device and your app, and click <b>Open</b> to browse its files. Select a preferences file or a database to see its contents; run read-only SQL on databases. On Android this works for debug builds.</p>
+
 <h3>4. Optional: the Network Inspector</h3>
 <p>To see your app's HTTP calls in the <b>KMP Network</b> tool window (at the bottom), add the small debug library and install it in your HTTP client:</p>
 <pre><code>// build.gradle.kts (commonMain, or debugImplementation in an Android-only app)
