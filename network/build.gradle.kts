@@ -6,6 +6,8 @@ plugins {
     `maven-publish`
 }
 
+version = providers.gradleProperty("devicehub.networkVersion").get()
+
 // io.github.khubaibkhan4:devicehub-network — add it to your app (debug builds) and install DeviceHubNetwork in your
 // Ktor HttpClient, or DeviceHubInterceptor in OkHttp.
 kotlin {

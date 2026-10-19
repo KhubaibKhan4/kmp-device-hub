@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1
+
+- Fixed: tab titles in the Devices panel (App, Settings, Permissions…) were blank in the new UI; it now uses the IDE's own tabs, with an overflow menu when the panel is narrow.
+- Search devices by name or OS, and filter by platform (Android / iOS).
+- A header for the selected device, with Start / Shut down and Screenshot buttons, so it's always clear which device the actions apply to.
+- Drag the divider between the device list and the tabs; its position is remembered.
+- App tab: a green check when your app is installed, and Clear data / Uninstall set apart from Launch / Stop.
+
 ## 0.1.0
 
 - Devices tool window: every Android device, emulator and iOS simulator in one list.
