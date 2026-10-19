@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Fixed: changing your app's language on Android now restarts the app in that language (like on iOS), instead of leaving it in the old language until you restart it yourself.
+- Fixed: choosing "Device language" on Android now really resets the app to the device's language.
+
 ## 0.1.1
 
 - Fixed: tab titles in the Devices panel (App, Settings, Permissions…) were blank in the new UI; it now uses the IDE's own tabs, with an overflow menu when the panel is narrow.

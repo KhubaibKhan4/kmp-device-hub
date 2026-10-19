@@ -169,8 +169,16 @@ class DeviceSettings(
         when (device.platform) {
             DevicePlatform.ANDROID -> adb { adb ->
                 if ((device.apiLevel ?: 0) in 1..32) return@adb ActionResult.failed("Per-app language needs Android 13 or newer.")
-                val command = listOf(adb, "-s", device.id, "shell", "cmd", "locale", "set-app-locales", appId, "--locales", language?.android ?: "")
-                outcome(runner.run(command), "$appId now runs in $label.")
+                // An empty locale list means "follow the device"; quoted so adb shell keeps the empty argument.
+                val command = listOf(adb, "-s", device.id, "shell", "cmd", "locale", "set-app-locales", appId, "--locales", shellQuote(language?.android ?: ""))
+                val set = runner.run(command)
+                if (!set.ok) return@adb ActionResult.failed("Couldn't change the language: ${set.errorSummary}")
+                // Many apps (Compose Multiplatform resources, AppCompat on older setups) only read the locale at
+                // start, so restart the app the way iOS does.
+                runner.run(listOf(adb, "-s", device.id, "shell", "am", "force-stop", appId))
+                val launch = runner.run(listOf(adb, "-s", device.id, "shell", "monkey", "-p", appId, "-c", "android.intent.category.LAUNCHER", "1"))
+                if ("No activities found" in launch.stdout + launch.stderr || !launch.ok) ActionResult.done("$appId will use $label next time it starts.")
+                else ActionResult.done("Relaunched $appId in $label.")
             }
             DevicePlatform.IOS -> xcrun { x ->
                 // Simulator apps read their language from launch arguments; relaunch with them.

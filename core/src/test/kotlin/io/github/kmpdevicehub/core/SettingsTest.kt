@@ -99,11 +99,16 @@ class SettingsTest {
         val arabic = AppLanguage.COMMON.first { it.android == "ar" }
         val runner = FakeRunner(mapOf(
             "$adb -s emulator-5554 shell cmd locale set-app-locales $app --locales ar" to ok(),
+            "$adb -s emulator-5554 shell cmd locale set-app-locales $app --locales ''" to ok(),
+            "$adb -s emulator-5554 shell am force-stop $app" to ok(),
+            "$adb -s emulator-5554 shell monkey -p $app -c android.intent.category.LAUNCHER 1" to ok("Events injected: 1"),
             "$xcrun simctl launch --terminate-running-process $udid $app -AppleLanguages (ar) -AppleLocale ar" to ok("$app: 99"),
             "$xcrun simctl launch --terminate-running-process $udid $app" to ok("$app: 100"),
         ))
         val settings = DeviceSettings(runner, tools)
-        assertTrue(settings.setAppLanguage(emu, app, arabic).ok)
+        assertEquals("Relaunched $app in Arabic (RTL).", settings.setAppLanguage(emu, app, arabic).message)
+        assertTrue(runner.ran.indexOf("$adb -s emulator-5554 shell am force-stop $app") > runner.ran.indexOf("$adb -s emulator-5554 shell cmd locale set-app-locales $app --locales ar"), "restarts after setting the locale")
+        assertEquals("Relaunched $app in the device language.", settings.setAppLanguage(emu, app, null).message)
         assertTrue(settings.setAppLanguage(sim, app, arabic).ok)
         assertTrue(settings.setAppLanguage(sim, app, null).ok, "back to the device language")
         assertContains(settings.setAppLanguage(oldEmu, app, arabic).message, "Android 13")
