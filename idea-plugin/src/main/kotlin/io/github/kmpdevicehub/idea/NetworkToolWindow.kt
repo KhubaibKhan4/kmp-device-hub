@@ -299,7 +299,7 @@ class NetworkPanel(
         val root = DefaultMutableTreeNode("response")
         if (parsed != null) addJson(root, null, parsed) else root.add(DefaultMutableTreeNode("The response isn't JSON"))
         jsonTree.model = DefaultTreeModel(root)
-        TreeUtil.expand(jsonTree, 2)
+        TreeUtil.expand(jsonTree, 3)
     }
 
     private fun headersAndBody(headers: List<Pair<String, String>>, body: String?, empty: String) = buildString {
@@ -491,5 +491,6 @@ class NetworkPanel(
     internal fun setFilter(text: String) { filterField.text = text; refreshNow() }
     internal fun setErrorsOnlyForTest(on: Boolean) { errorsOnly = on; refreshNow() }
     internal fun refreshForTest() = refreshNow()
+    internal fun selectDetailsTab(title: String) { details.selectedIndex = details.indexOfTab(title) }
     internal fun selectedCall() = selected()
 }
