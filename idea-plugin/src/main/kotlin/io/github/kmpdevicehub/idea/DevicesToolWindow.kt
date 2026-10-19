@@ -175,6 +175,11 @@ class DevicesPanel(
     @Volatile
     private var apps = ProjectApps(emptyList(), emptyList())
 
+    /** Completed refreshes (for tests). */
+    @Volatile
+    internal var loads = 0
+        private set
+
     @Volatile
     internal var lastList: DeviceList = DeviceList(emptyList())
         private set
@@ -364,6 +369,7 @@ class DevicesPanel(
         try {
             val loaded = load()
             lastList = loaded
+            loads++
             onEdt { show(loaded) }
         } finally {
             refreshing.set(false)

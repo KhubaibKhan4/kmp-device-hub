@@ -83,10 +83,13 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertEquals("Shut down", panel.headerPower)
     }
 
-    /** Uses the real adb/xcrun when present; on machines without them it must report problems, not crash. */
+    /**
+     * Uses the real adb/xcrun when present. Any outcome is fine (devices, none, or problems such as a missing SDK);
+     * it just has to finish without throwing. CI runners have an SDK and no devices.
+     */
     fun `test real discovery never throws`() {
         val panel = DevicesPanel(project, testRootDisposable, autoRefresh = false)
-        assertTrue(waitFor(60_000) { panel.lastList.devices.isNotEmpty() || panel.lastList.problems.isNotEmpty() })
+        assertTrue(waitFor(60_000) { panel.loads > 0 })
         println("LIVE ${panel.lastList.devices.size} devices, problems=${panel.lastList.problems}")
     }
 
