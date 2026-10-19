@@ -58,6 +58,15 @@ class LogsPanelTest : BasePlatformTestCase() {
         }
     }
 
+    override fun tearDown() {
+        try {
+            val props = com.intellij.ide.util.PropertiesComponent.getInstance(project)
+            listOf("ANDROID", "IOS").forEach { props.unsetValue("kmpdevicehub.app.$it") }
+        } finally {
+            super.tearDown()
+        }
+    }
+
     private fun waitFor(condition: () -> Boolean): Boolean {
         val deadline = System.currentTimeMillis() + 10_000
         while (!condition() && System.currentTimeMillis() < deadline) { PlatformTestUtil.dispatchAllEventsInIdeEventQueue(); Thread.sleep(20) }

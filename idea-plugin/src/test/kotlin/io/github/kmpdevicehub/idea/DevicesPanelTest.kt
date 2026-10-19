@@ -30,6 +30,13 @@ class DevicesPanelTest : BasePlatformTestCase() {
         ),
     )
 
+    override fun setUp() {
+        super.setUp()
+        // Other panels' tests remember an app id in the shared test project; start each test from the detected ids.
+        val props = com.intellij.ide.util.PropertiesComponent.getInstance(project)
+        listOf("ANDROID", "IOS").forEach { props.unsetValue("kmpdevicehub.app.$it") }
+    }
+
     private fun waitFor(timeoutMs: Long = 20_000, condition: () -> Boolean): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (!condition() && System.currentTimeMillis() < deadline) {
