@@ -146,6 +146,70 @@ class DeviceActions(
     }
 
     /**
+     * Installs a build onto the device: an `.apk` (or several split APKs) on Android, a simulator `.app` bundle on iOS.
+     * Reinstalling keeps the app's data, like Android Studio's Run.
+     */
+    fun install(device: Device, files: List<File>): ActionResult {
+        if (!device.isRunning) return ActionResult.failed("Start ${device.name} first.")
+        if (files.isEmpty()) return ActionResult.failed("Choose an .apk or .app to install.")
+        val missing = files.firstOrNull { !it.exists() }
+        if (missing != null) return ActionResult.failed("${missing.name} doesn't exist.")
+        val name = files.singleOrNull()?.name ?: "${files.size} files"
+        return when (device.platform) {
+            DevicePlatform.ANDROID -> withAdb { adb ->
+                val wrong = files.firstOrNull { !it.name.endsWith(".apk", ignoreCase = true) }
+                when {
+                    wrong?.name?.endsWith(".aab", ignoreCase = true) == true ->
+                        ActionResult.failed("${wrong.name} is an App Bundle; devices install .apk files. Build an APK (assembleDebug) instead.")
+                    wrong != null -> ActionResult.failed("${wrong.name} isn't an .apk, so it can't be installed on ${device.name}.")
+                    else -> {
+                        // -r keeps data on reinstall, -t allows test-only (debug) builds, -d allows downgrades.
+                        val command = listOf(adb, "-s", device.id) + (if (files.size > 1) listOf("install-multiple") else listOf("install")) +
+                            listOf("-r", "-t", "-d") + files.map { it.path }
+                        val r = runner.run(command, timeoutSeconds = 300)
+                        val failure = Regex("""Failure \[([A-Z_]+)(?::\s*([^\]]*))?]""").find(r.stdout + r.stderr)
+                        when {
+                            "Success" in r.stdout -> ActionResult.done("Installed $name on ${device.name}.")
+                            failure != null -> ActionResult.failed("Couldn't install $name: ${installHint(failure.groupValues[1])}")
+                            else -> ActionResult.failed("Couldn't install $name: ${r.errorSummary}")
+                        }
+                    }
+                }
+            }
+            DevicePlatform.IOS -> withXcrun { xcrun ->
+                val app = files.single()
+                when {
+                    files.size > 1 -> ActionResult.failed("Install one .app at a time on a simulator.")
+                    app.name.endsWith(".ipa", ignoreCase = true) ->
+                        ActionResult.failed("${app.name} is a device build; simulators need the .app from an iOS Simulator build (Build/Products/Debug-iphonesimulator).")
+                    !app.name.endsWith(".app", ignoreCase = true) || !app.isDirectory ->
+                        ActionResult.failed("${app.name} isn't an .app bundle, so it can't be installed on ${device.name}.")
+                    else -> {
+                        val r = runner.run(listOf(xcrun, "simctl", "install", device.id, app.path), timeoutSeconds = 300)
+                        when {
+                            r.ok -> ActionResult.done("Installed $name on ${device.name}.")
+                            "arm64" in r.stderr || "architecture" in r.stderr.lowercase() ->
+                                ActionResult.failed("$name was built for a different architecture than ${device.name}.")
+                            else -> ActionResult.failed("Couldn't install $name: ${r.errorSummary}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun installHint(code: String): String = when (code) {
+        "INSTALL_FAILED_UPDATE_INCOMPATIBLE" -> "a build signed with a different key is already installed. Uninstall it first."
+        "INSTALL_FAILED_NO_MATCHING_ABIS" -> "the APK has no native code for this device's CPU (e.g. an x86-only build on an ARM emulator)."
+        "INSTALL_FAILED_OLDER_SDK" -> "the APK needs a newer Android version than this device has."
+        "INSTALL_FAILED_INSUFFICIENT_STORAGE" -> "the device is out of storage."
+        "INSTALL_PARSE_FAILED_NO_CERTIFICATES" -> "the APK isn't signed."
+        "INSTALL_FAILED_TEST_ONLY" -> "the APK is marked test-only."
+        "INSTALL_FAILED_VERSION_DOWNGRADE" -> "a newer version is already installed."
+        else -> code
+    }
+
+    /**
      * Simulators have no "clear data" command: stop the app, then empty Documents, Library and tmp in its data
      * container. Only ever touches a path that is this app's data container inside this simulator.
      */

@@ -128,4 +128,57 @@ class SimulationTest {
         assertEquals("'it'\\''s'", shellQuote("it's"))
         assertEquals("''", shellQuote(""))
     }
+
+    @Test
+    fun `battery, rotation and biometrics on both platforms`() {
+        val runner = FakeRunner(mapOf(
+            "$adb -s emulator-5554 emu power ac on" to ok("OK"),
+            "$adb -s emulator-5554 emu power status charging" to ok("OK"),
+            "$adb -s emulator-5554 emu power capacity 15" to ok("OK"),
+            "$xcrun simctl status_bar $udid override --batteryLevel 15 --batteryState charging" to ok(),
+            "$adb -s emulator-5554 shell settings get system user_rotation" to ok("0\n"),
+            "$adb -s emulator-5554 shell settings put system accelerometer_rotation 0" to ok(),
+            "$adb -s emulator-5554 shell settings put system user_rotation 1" to ok(),
+            "$adb -s emulator-5554 emu finger touch 1" to ok("OK"),
+            "$adb -s emulator-5554 emu finger touch 2" to ok("OK"),
+            "$xcrun simctl spawn $udid notifyutil -p com.apple.BiometricKit_Sim.pearl.nomatch" to ok(),
+            "$xcrun simctl spawn $udid notifyutil -p com.apple.BiometricKit_Sim.fingerTouch.nomatch" to ok(),
+            "$xcrun simctl spawn $udid notifyutil -s com.apple.BiometricKit.enrollmentChanged 1" to ok(),
+            "$xcrun simctl spawn $udid notifyutil -p com.apple.BiometricKit.enrollmentChanged" to ok(),
+        ))
+        val s = DeviceSimulation(runner, tools)
+        assertEquals("Battery at 15%, charging on Pixel 9.", s.setBattery(emu, 15, charging = true).message)
+        assertTrue(s.setBattery(sim, 15, charging = true).ok)
+        assertContains(s.setBattery(phone, 15, true).message, "only be simulated on emulators")
+        assertContains(s.setBattery(emu, 150, true).message, "0–100")
+        assertEquals("Rotated Pixel 9 to landscape.", s.rotate(emu).message)
+        assertContains(s.rotate(sim).message, "⌘→")
+        assertTrue(s.biometric(emu, match = true).ok)
+        assertTrue(s.biometric(emu, match = false).ok)
+        assertEquals("Non-matching Face ID / Touch ID sent to iPhone 18 Pro.", s.biometric(sim, match = false).message)
+        assertTrue(s.enrollBiometrics(sim, true).ok)
+    }
+
+    @Test
+    fun `media and clipboard`() {
+        val dir = java.nio.file.Files.createTempDirectory("media").toFile()
+        val photo = File(dir, "beach.jpg").apply { writeText("x") }
+        val video = File(dir, "clip.mp4").apply { writeText("x") }
+        val runner = FakeRunner(mapOf(
+            "$xcrun simctl addmedia $udid ${photo.path} ${video.path}" to ok(),
+            "$adb -s emulator-5554 push ${photo.path} /sdcard/Pictures/beach.jpg" to ok("1 file pushed"),
+            "$adb -s emulator-5554 push ${video.path} /sdcard/Movies/clip.mp4" to ok("1 file pushed"),
+            "$adb -s emulator-5554 shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/beach.jpg" to ok(),
+            "$adb -s emulator-5554 shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Movies/clip.mp4" to ok(),
+            "/bin/sh -c printf %s \"\$1\" | LC_ALL=en_US.UTF-8 \"\$2\" simctl pbcopy \"\$3\" sh promo code: KMP-42 $xcrun $udid" to ok(),
+            "/usr/bin/env LC_ALL=en_US.UTF-8 $xcrun simctl pbpaste $udid" to ok("hello from iOS"),
+        ))
+        val s = DeviceSimulation(runner, tools)
+        assertEquals("Added 2 files to Photos on iPhone 18 Pro.", s.addMedia(sim, listOf(photo, video)).message)
+        assertEquals("Added 2 files to the gallery on Pixel 9.", s.addMedia(emu, listOf(photo, video)).message)
+        assertContains(s.addMedia(emu, listOf(File(dir, "notes.txt").apply { writeText("x") })).message, "isn't a photo or video")
+        assertTrue(s.setClipboard(sim, "promo code: KMP-42").ok)
+        assertContains(s.setClipboard(emu, "x").message, "share your computer's clipboard")
+        assertEquals("hello from iOS", s.getClipboard(sim))
+    }
 }

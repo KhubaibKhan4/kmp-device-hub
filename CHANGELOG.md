@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- New KMP Logs window: your app's logs from Android (logcat, filtered to your app and following restarts) and iOS simulators (the unified log, or the app's println output), with level filter, search and color.
+- Install apps: drop an .apk or simulator .app on a device, or use Install App… (opens at your latest build). Clear messages for the usual install failures.
+- Simulate battery level and charging, rotate Android screens, send matching or failing Face ID / Touch ID / fingerprint, add photos and videos to the gallery, and copy text to or from a simulator's clipboard.
+- Network Inspector: the JSON tree opens three levels deep; "Start Free Trial" opens the Marketplace listing.
+
 ## 0.1.2
 
 - Fixed: changing your app's language on Android now restarts the app in that language (like on iOS), instead of leaving it in the old language until you restart it yourself.

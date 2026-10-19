@@ -24,7 +24,7 @@ object ProLicense {
         "Deep link library",
         "Screen recording",
         "Push notification tester",
-        "Simulated location, network conditions and a clean status bar",
+        "Simulated location, network, battery, rotation, biometrics, media and a clean status bar",
         "Network Inspector: mock responses, fail requests, add latency, export HAR",
     )
 

@@ -66,11 +66,24 @@ requests or add latency to test your error states, and export everything as HAR.
 
 <img src="docs/screenshots/05-network-errors.png" alt="A 402 response and a failed call in the Network Inspector" width="900">
 
+### Logs from both platforms
+
+The **KMP Logs** window streams your app's logs: Android's logcat filtered to your app (it follows restarts), and on iOS
+simulators the unified log for your app, or its stdout so Kotlin/Native `println` shows up too. Filter by level, search,
+and copy what you see.
+
+### Install builds
+
+Drop an `.apk` (or split APKs) or a simulator `.app` on any device in the list, or use **Install App…**, which opens at
+your project's latest build. Common failures (signature mismatch, missing ABI, App Bundle instead of APK, device build
+instead of simulator build) are explained in plain words.
+
 ### Simulate the real world
 
-Simulated location, Android emulator network conditions (LTE, 3G, EDGE, GPRS or offline), push notifications (a real
-push on iOS, a notification-tap intent on Android), deep links, screenshots, screen recording and a clean 9:41 status
-bar for store screenshots.
+Simulated location, Android emulator network conditions (LTE, 3G, EDGE, GPRS or offline), battery level and charging,
+screen rotation, Face ID / Touch ID / fingerprint that matches or fails, photos and videos added to the gallery,
+clipboard text, push notifications (a real push on iOS, a notification-tap intent on Android), deep links,
+screenshots, screen recording and a clean 9:41 status bar for store screenshots.
 
 <img src="docs/screenshots/06-simulate.png" alt="Simulate tab next to an iPhone home screen with a 9:41 status bar" width="900">
 
@@ -111,15 +124,15 @@ It's on Maven Central (`mavenCentral()`), so no extra repository is needed. To t
 
 Everything is free during early access. Later, a Pro plan through JetBrains Marketplace (with a free trial) will cover
 the power features: all-devices actions, presets, screen recording, the push tester, the deep link library, location,
-network conditions and the clean status bar, and the Network Inspector's mocking and HAR export. Device control,
-settings, permissions and the Network Inspector itself stay free.
+network conditions, battery, rotation, biometrics, media and the clean status bar, and the Network Inspector's mocking
+and HAR export. Device control, installing builds, settings, permissions, logs and the Network Inspector itself stay
+free.
 
 ## Roadmap
 
-- Unified logs: Logcat and the iOS simulator log in one view, filtered to your app
 - App data explorer: files, preferences and SQLite databases on the device
-- Install an APK or `.app` by dragging it onto a device
-- Battery, rotation, biometrics, media and clipboard simulation
+- Logs: export, and a crash view that highlights the stack trace
+- Physical iPhones (install, logs, screenshots)
 
 ## How it works
 
@@ -127,7 +140,7 @@ settings, permissions and the Network Inspector itself stay free.
 |---|---|
 | [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices, and runs every device action, setting, simulation and preset through them. Every command goes through a `CommandRunner`, faked in tests. |
 | [`network`](network) | `devicehub-network`, the Kotlin Multiplatform library (JVM/Android, iOS) apps add to send their HTTP calls to the Network Inspector: a Ktor client plugin and an OkHttp interceptor. |
-| [`idea-plugin`](idea-plugin) | The KMP Devices and KMP Network tool windows for Android Studio and IntelliJ IDEA 2025.1+. |
+| [`idea-plugin`](idea-plugin) | The KMP Devices, KMP Network and KMP Logs tool windows for Android Studio and IntelliJ IDEA 2025.1+. |
 | [`samples/network-demo`](samples/network-demo) | A small Android + iOS app for trying the Network Inspector. |
 
 ## Development

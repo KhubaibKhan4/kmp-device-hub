@@ -158,6 +158,127 @@ class DeviceSimulation(
         }
     }
 
+    // ---- Battery, rotation, biometrics, media, clipboard ------------------------------------------------
+
+    /** Battery level (0–100) and charging state: the emulator's battery, or the simulator's status bar. */
+    fun setBattery(device: Device, level: Int, charging: Boolean): ActionResult = running(device) {
+        if (level !in 0..100) return@running ActionResult.failed("Battery level must be 0–100.")
+        val done = "Battery at $level%${if (charging) ", charging" else ""} on ${device.name}."
+        when (device.platform) {
+            DevicePlatform.ANDROID -> adb { adb ->
+                if (device.kind != DeviceKind.EMULATOR) return@adb ActionResult.failed("The battery can only be simulated on emulators.")
+                val steps = listOf(
+                    listOf("power", "ac", if (charging) "on" else "off"),
+                    listOf("power", "status", if (charging) "charging" else "discharging"),
+                    listOf("power", "capacity", level.toString()),
+                ).map { runner.run(listOf(adb, "-s", device.id, "emu") + it) }
+                steps.firstOrNull { !it.ok || it.stdout.startsWith("KO") }?.let { ActionResult.failed("Couldn't change the battery: ${it.errorSummary}") } ?: ActionResult.done(done)
+            }
+            DevicePlatform.IOS -> xcrun { x ->
+                outcome(runner.run(listOf(x, "simctl", "status_bar", device.id, "override", "--batteryLevel", level.toString(),
+                    "--batteryState", if (charging) "charging" else "discharging")), done)
+            }
+        }
+    }
+
+    /** Rotates the screen a quarter turn. Android only: the iOS simulator has no command for it (⌘← / ⌘→ in Simulator). */
+    fun rotate(device: Device): ActionResult = running(device) {
+        if (device.platform == DevicePlatform.IOS) return@running ActionResult.failed("Simulators can't be rotated from the command line; press ⌘→ in the Simulator window.")
+        adb { adb ->
+            val current = runner.run(listOf(adb, "-s", device.id, "shell", "settings", "get", "system", "user_rotation")).stdout.trim().toIntOrNull() ?: 0
+            val next = (current + 1) % 4
+            runner.run(listOf(adb, "-s", device.id, "shell", "settings", "put", "system", "accelerometer_rotation", "0"))
+            val r = runner.run(listOf(adb, "-s", device.id, "shell", "settings", "put", "system", "user_rotation", next.toString()))
+            outcome(r, "Rotated ${device.name} to ${listOf("portrait", "landscape", "upside-down portrait", "reverse landscape")[next]}.")
+        }
+    }
+
+    /** Back to automatic rotation (Android). */
+    fun resetRotation(device: Device): ActionResult = running(device) {
+        if (device.platform == DevicePlatform.IOS) return@running ActionResult.done("Nothing to reset on ${device.name}.")
+        adb { adb ->
+            runner.run(listOf(adb, "-s", device.id, "shell", "settings", "put", "system", "user_rotation", "0"))
+            outcome(runner.run(listOf(adb, "-s", device.id, "shell", "settings", "put", "system", "accelerometer_rotation", "1")), "Auto-rotate on for ${device.name}.")
+        }
+    }
+
+    /**
+     * A fingerprint / Face ID attempt that matches or fails, for testing biometric prompts. Android emulators need a
+     * fingerprint enrolled as finger 1 (Settings → Security); simulators need Features → Face ID / Touch ID → Enrolled.
+     */
+    fun biometric(device: Device, match: Boolean): ActionResult = running(device) {
+        val outcomeText = if (match) "Matching" else "Non-matching"
+        when (device.platform) {
+            DevicePlatform.ANDROID -> adb { adb ->
+                if (device.kind != DeviceKind.EMULATOR) return@adb ActionResult.failed("Fingerprints can only be simulated on emulators.")
+                outcome(runner.run(listOf(adb, "-s", device.id, "emu", "finger", "touch", if (match) "1" else "2")), "$outcomeText fingerprint sent to ${device.name}.")
+            }
+            DevicePlatform.IOS -> xcrun { x ->
+                // Face ID ("pearl") and Touch ID ("fingerTouch"); the simulator only reacts to the kind it has.
+                val suffix = if (match) "match" else "nomatch"
+                val results = listOf("pearl", "fingerTouch").map {
+                    runner.run(listOf(x, "simctl", "spawn", device.id, "notifyutil", "-p", "com.apple.BiometricKit_Sim.$it.$suffix"))
+                }
+                results.firstOrNull { !it.ok }?.let { ActionResult.failed(it.errorSummary) } ?: ActionResult.done("$outcomeText Face ID / Touch ID sent to ${device.name}.")
+            }
+        }
+    }
+
+    /** Turns biometric enrollment on or off (iOS simulators). */
+    fun enrollBiometrics(device: Device, enrolled: Boolean): ActionResult = running(device) {
+        if (device.platform == DevicePlatform.ANDROID) return@running ActionResult.failed("Enroll a fingerprint in the emulator's Settings → Security, then use finger 1.")
+        xcrun { x ->
+            val set = runner.run(listOf(x, "simctl", "spawn", device.id, "notifyutil", "-s", "com.apple.BiometricKit.enrollmentChanged", if (enrolled) "1" else "0"))
+            if (!set.ok) return@xcrun ActionResult.failed(set.errorSummary)
+            outcome(runner.run(listOf(x, "simctl", "spawn", device.id, "notifyutil", "-p", "com.apple.BiometricKit.enrollmentChanged")),
+                "Face ID / Touch ID ${if (enrolled) "enrolled" else "not enrolled"} on ${device.name}.")
+        }
+    }
+
+    /** Adds photos and videos to the device's gallery (Photos on iOS, MediaStore on Android). */
+    fun addMedia(device: Device, files: List<File>): ActionResult = running(device) {
+        if (files.isEmpty()) return@running ActionResult.failed("Choose photos or videos to add.")
+        val bad = files.firstOrNull { it.extension.lowercase() !in MEDIA }
+        if (bad != null) return@running ActionResult.failed("${bad.name} isn't a photo or video (${MEDIA.joinToString(", ")}).")
+        val label = files.singleOrNull()?.name ?: "${files.size} files"
+        when (device.platform) {
+            DevicePlatform.IOS -> xcrun { x ->
+                outcome(runner.run(listOf(x, "simctl", "addmedia", device.id) + files.map { it.path }, timeoutSeconds = 120), "Added $label to Photos on ${device.name}.")
+            }
+            DevicePlatform.ANDROID -> adb { adb ->
+                for (file in files) {
+                    val folder = if (file.extension.lowercase() in VIDEO) "Movies" else "Pictures"
+                    val remote = "/sdcard/$folder/${file.name}"
+                    val push = runner.run(listOf(adb, "-s", device.id, "push", file.path, remote), timeoutSeconds = 120)
+                    if (!push.ok) return@adb ActionResult.failed("Couldn't copy ${file.name}: ${push.errorSummary}")
+                    // Tell MediaStore about the new file so it shows up in the gallery and photo pickers.
+                    runner.run(listOf(adb, "-s", device.id, "shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
+                        "-d", shellQuote("file://$remote")))
+                }
+                ActionResult.done("Added $label to the gallery on ${device.name}.")
+            }
+        }
+    }
+
+    /** Puts [text] on the simulator's clipboard. Android emulators already share the Mac's clipboard. */
+    fun setClipboard(device: Device, text: String): ActionResult = running(device) {
+        if (device.platform == DevicePlatform.ANDROID) {
+            return@running ActionResult.failed("Android emulators share your computer's clipboard: copy here and paste there (Extended controls → Settings → Clipboard sharing).")
+        }
+        xcrun { x ->
+            // simctl reads the pasteboard as Mac Roman unless the locale is UTF-8.
+            outcome(runner.run(listOf("/bin/sh", "-c", "printf %s \"\$1\" | LC_ALL=en_US.UTF-8 \"\$2\" simctl pbcopy \"\$3\"", "sh", text, x, device.id)),
+                "Copied to ${device.name}'s clipboard.")
+        }
+    }
+
+    /** The simulator's clipboard text, or null. */
+    fun getClipboard(device: Device): String? {
+        if (!device.isRunning || device.platform != DevicePlatform.IOS) return null
+        val x = tools.xcrun ?: return null
+        return runner.run(listOf("/usr/bin/env", "LC_ALL=en_US.UTF-8", x, "simctl", "pbpaste", device.id)).takeIf { it.ok }?.stdout
+    }
+
     // ---- Push notifications -------------------------------------------------------------------------------
 
     /**
@@ -248,6 +369,8 @@ class DeviceSimulation(
         private const val ADB_MISSING = "adb not found. Install the Android SDK platform tools."
         private const val XCRUN_MISSING = "Xcode not found. iOS simulators need Xcode."
         private val EXTRA_KEY = Regex("""[A-Za-z0-9_.\-]+""")
+        private val VIDEO = setOf("mp4", "mov", "m4v", "3gp", "webm")
+        private val MEDIA = setOf("jpg", "jpeg", "png", "heic", "gif", "webp") + VIDEO
     }
 }
 

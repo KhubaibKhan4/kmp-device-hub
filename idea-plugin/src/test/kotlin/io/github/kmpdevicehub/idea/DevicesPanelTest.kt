@@ -223,6 +223,13 @@ class DevicesPanelTest : BasePlatformTestCase() {
         panel.simulate.applyNetwork(io.github.kmpdevicehub.core.NetworkProfile.EDGE)
         assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu network speed edge") })
 
+        panel.simulate.setBatteryForTest(15, charging = true)
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu power capacity 15") })
+        panel.simulate.clickRotate()
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell settings put system user_rotation 1") })
+        panel.simulate.clickBiometric(match = true)
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu finger touch 1") })
+
         panel.push.sendWith("Hello", "orderId=42")
         assertTrue(waitFor { runner.ran.any { it.contains("-n org.example.project/.MainActivity") && it.endsWith("--es orderId 42") } })
 
@@ -261,6 +268,21 @@ class DevicesPanelTest : BasePlatformTestCase() {
         // Free features keep working.
         panel.toggleDarkMode(true)
         assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell cmd uimode night yes") })
+    }
+
+    fun `test installing by drop or chooser runs adb install and simctl install`() {
+        val runner = RecordingRunner()
+        val tools = ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun")
+        val panel = DevicesPanel(project, testRootDisposable, load = { sample }, actions = DeviceActions(runner, tools), autoRefresh = false)
+        assertTrue(waitFor { panel.rowCount == 9 })
+        val dir = java.nio.file.Files.createTempDirectory("builds").toFile()
+        val apk = File(dir, "app-debug.apk").apply { writeText("x") }
+        val app = File(dir, "iosApp.app").apply { mkdirs() }
+        panel.select("emulator-5554")
+        assertTrue(panel.dropForTest(listOf(apk)))
+        assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 install -r -t -d ${apk.path}") })
+        panel.installForTest("UDID-1", listOf(app))
+        assertTrue(waitFor { runner.ran.contains("/usr/bin/xcrun simctl install UDID-1 ${app.path}") })
     }
 
     /** Renders build/devices-panel.png for a visual check. */

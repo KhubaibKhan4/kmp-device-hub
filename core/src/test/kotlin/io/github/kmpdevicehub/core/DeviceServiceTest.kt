@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Answers commands from a map; unknown commands fail like a missing tool would. */
-class FakeRunner(private val responses: Map<String, CommandResult>) : CommandRunner {
+class FakeRunner(private val responses: Map<String, CommandResult>, private val streams: Map<String, List<String>> = emptyMap()) : CommandRunner {
     val ran = mutableListOf<String>()
     val spawned = mutableListOf<String>()
     override fun run(command: List<String>, timeoutSeconds: Long): CommandResult {
@@ -16,6 +16,13 @@ class FakeRunner(private val responses: Map<String, CommandResult>) : CommandRun
         return responses[key] ?: CommandResult(127, "", "unexpected command: $key")
     }
     override fun spawn(command: List<String>) { spawned += command.joinToString(" ") }
+    val streamed = mutableListOf<String>()
+    override fun stream(command: List<String>, onLine: (String) -> Unit): RunningProcess? {
+        val key = command.joinToString(" ")
+        streamed += key
+        streams[key]?.forEach(onLine) ?: return null
+        return start(command)
+    }
     val started = mutableListOf<String>()
     override fun start(command: List<String>): RunningProcess {
         started += command.joinToString(" ")

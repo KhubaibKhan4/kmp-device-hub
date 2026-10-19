@@ -191,10 +191,27 @@ class DevicesPanel(
             com.intellij.openapi.actionSystem.Separator.getInstance(),
             action("Screenshot", "Save a screenshot and copy it to the clipboard", AllIcons.FileTypes.Image, { it?.isRunning == true }) { screenshot(it!!) },
             recordAction(),
+            action("Install App…", "Install an .apk or a simulator .app on the selected device (or drop the file on a device)",
+                AllIcons.Actions.Download, { it?.isRunning == true }) { chooseAndInstall(it!!) },
             action("Wi-Fi Debugging", "Pair and connect an Android phone over Wi-Fi", AllIcons.Nodes.Plugin, { true }) { WifiDialog(project, settings) { refresh() }.show() },
         ), true).apply { targetComponent = this@DevicesPanel }
 
         list.addListSelectionListener { if (!it.valueIsAdjusting) selectionChanged() }
+        // Drop .apk / .app files on a device to install them there.
+        list.dropMode = javax.swing.DropMode.ON
+        list.transferHandler = object : javax.swing.TransferHandler() {
+            override fun canImport(support: TransferSupport) = support.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.javaFileListFlavor)
+            override fun importData(support: TransferSupport): Boolean {
+                if (!canImport(support)) return false
+                @Suppress("UNCHECKED_CAST")
+                val files = runCatching { support.transferable.getTransferData(java.awt.datatransfer.DataFlavor.javaFileListFlavor) as List<File> }.getOrNull() ?: return false
+                // A paste has no drop location: install on the selected device.
+                val index = if (support.isDrop) (support.dropLocation as? javax.swing.JList.DropLocation)?.index ?: -1 else -1
+                val device = (model.items.getOrNull(index) as? Row.Item)?.device ?: selectedDevice() ?: return false
+                install(device, files)
+                return true
+            }
+        }
         list.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 val device = selectedDevice() ?: return
@@ -541,6 +558,34 @@ class DevicesPanel(
         return File(dir, "${device.name.replace(Regex("[^A-Za-z0-9 ._()-]"), "")} $stamp.$extension")
     }
 
+    // ---- Install -------------------------------------------------------------------------------------------
+
+    private fun chooseAndInstall(device: Device) {
+        val android = device.platform == DevicePlatform.ANDROID
+        val descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptor(true, !android, false, false, false, android)
+            .withTitle("Install App on ${device.name}")
+            .withDescription(if (android) "Choose an .apk (or several split APKs)." else "Choose the .app from an iOS Simulator build.")
+        val start = latestBuild(device)?.let { com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByIoFile(it) }
+        com.intellij.openapi.fileChooser.FileChooser.chooseFiles(descriptor, project, this, start) { chosen ->
+            install(device, chosen.map { File(it.path) })
+        }
+    }
+
+    /** Where the project's newest build usually is, to open the chooser there. */
+    private fun latestBuild(device: Device): File? {
+        val root = project.basePath?.let(::File) ?: return null
+        return if (device.platform == DevicePlatform.ANDROID) {
+            root.walkTopDown().maxDepth(6).filter { it.isFile && it.extension == "apk" && "outputs${File.separator}apk" in it.path }.maxByOrNull { it.lastModified() }
+        } else {
+            root.walkTopDown().maxDepth(7).filter { it.isDirectory && it.name.endsWith(".app") && "iphonesimulator" in it.path }.maxByOrNull { it.lastModified() }
+        }
+    }
+
+    private fun install(device: Device, files: List<File>) {
+        val name = files.singleOrNull()?.name ?: "${files.size} files"
+        run("Installing $name on ${device.name}…") { actions.install(device, files) }
+    }
+
     private fun screenshot(device: Device) {
         if (allDevicesBox.isSelected) {
             runOnTargets("Taking screenshots…") { d, _ -> settings.screenshot(d, fileFor(screenshotDir, d, "png")) }
@@ -722,5 +767,14 @@ class DevicesPanel(
     internal fun selectTab(title: String) { tabs.tabs.firstOrNull { it.text == title }?.let { tabs.select(it, false) } }
     internal val tabTitles: List<String> get() = tabs.tabs.map { it.text }
     internal fun takeScreenshot() = selectedDevice()?.let(::screenshot)
+    internal fun installForTest(deviceId: String, files: List<File>) = install(lastList.devices.first { it.id == deviceId }, files)
+    internal fun dropForTest(files: List<File>): Boolean {
+        val t = object : java.awt.datatransfer.Transferable {
+            override fun getTransferDataFlavors() = arrayOf(java.awt.datatransfer.DataFlavor.javaFileListFlavor)
+            override fun isDataFlavorSupported(f: java.awt.datatransfer.DataFlavor) = f == java.awt.datatransfer.DataFlavor.javaFileListFlavor
+            override fun getTransferData(f: java.awt.datatransfer.DataFlavor): Any = files
+        }
+        return list.transferHandler.importData(javax.swing.TransferHandler.TransferSupport(list, t))
+    }
     internal val darkModeChecked: Boolean get() = darkBox.isSelected
 }

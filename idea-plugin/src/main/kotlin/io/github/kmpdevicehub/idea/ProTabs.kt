@@ -62,6 +62,18 @@ internal class SimulateTab(private val ctx: PanelContext, private val simulation
     }
     private val applyNetworkButton = JButton("Apply")
     internal val statusBarBox = JBCheckBox("Clean status bar (9:41, full battery and signal)")
+    private val batterySpinner = javax.swing.JSpinner(javax.swing.SpinnerNumberModel(20, 0, 100, 5))
+    private val chargingBox = JBCheckBox("Charging")
+    private val batteryButton = JButton("Set battery")
+    private val rotateButton = JButton("Rotate", AllIcons.Actions.Refresh)
+    private val autoRotateButton = JButton("Auto-rotate")
+    private val bioMatchButton = JButton("Biometric match", AllIcons.General.InspectionsOK)
+    private val bioFailButton = JButton("No match", AllIcons.General.Error)
+    private val enrollBox = JBCheckBox("Face ID / Touch ID enrolled")
+    private val mediaButton = JButton("Add photos or videos…", AllIcons.FileTypes.Image)
+    private val clipboardField = JBTextField().apply { emptyText.text = "Text to put on the device's clipboard" }
+    private val clipboardSendButton = JButton("Send")
+    private val clipboardReadButton = JButton("Copy from device")
     private val hint = HintLabel()
 
     override val component: JComponent = panel {
@@ -77,12 +89,27 @@ internal class SimulateTab(private val ctx: PanelContext, private val simulation
         group("Status bar") {
             row { cell(statusBarBox) }
         }
+        group("Battery") {
+            row("Level %:") { cell(batterySpinner); cell(chargingBox) }
+            row { cell(batteryButton) }
+        }
+        group("Rotation and biometrics") {
+            row { cell(rotateButton); cell(autoRotateButton) }
+            row { cell(bioMatchButton); cell(bioFailButton) }
+            row { cell(enrollBox) }
+        }
+        group("Media and clipboard") {
+            row { cell(mediaButton) }
+            row { cell(clipboardField).align(AlignX.FILL).resizableColumn() }
+            row { cell(clipboardSendButton); cell(clipboardReadButton) }
+        }
         row { cell(hint) }
     }
 
     init {
         placeBox.addActionListener { fillCoordinates() }
         fillCoordinates()
+        wireExtras()
         setLocationButton.addActionListener {
             if (!ctx.requirePro("Simulated location")) return@addActionListener
             val lat = latField.text.trim().toDoubleOrNull()
@@ -104,6 +131,48 @@ internal class SimulateTab(private val ctx: PanelContext, private val simulation
         }
     }
 
+    private fun wireExtras() {
+        batteryButton.addActionListener {
+            if (!ctx.requirePro("Battery simulation")) return@addActionListener
+            val level = (batterySpinner.value as Number).toInt()
+            val charging = chargingBox.isSelected
+            ctx.runOnTargets("Changing battery…") { d, _ -> simulation.setBattery(d, level, charging) }
+        }
+        rotateButton.addActionListener { if (ctx.requirePro("Rotation")) ctx.runOnTargets("Rotating…") { d, _ -> simulation.rotate(d) } }
+        autoRotateButton.addActionListener { ctx.runOnTargets("Turning on auto-rotate…") { d, _ -> simulation.resetRotation(d) } }
+        bioMatchButton.addActionListener { if (ctx.requirePro("Biometric simulation")) ctx.runOnTargets("Sending a matching biometric…") { d, _ -> simulation.biometric(d, true) } }
+        bioFailButton.addActionListener { if (ctx.requirePro("Biometric simulation")) ctx.runOnTargets("Sending a non-matching biometric…") { d, _ -> simulation.biometric(d, false) } }
+        enrollBox.addActionListener {
+            if (!ctx.requirePro("Biometric simulation")) { enrollBox.isSelected = !enrollBox.isSelected; return@addActionListener }
+            val on = enrollBox.isSelected
+            ctx.runOnTargets("Changing enrollment…") { d, _ -> simulation.enrollBiometrics(d, on) }
+        }
+        mediaButton.addActionListener {
+            if (!ctx.requirePro("Adding media")) return@addActionListener
+            val descriptor = com.intellij.openapi.fileChooser.FileChooserDescriptor(true, false, false, false, false, true)
+                .withTitle("Add Photos or Videos").withDescription("Images (jpg, png, heic, gif, webp) or videos (mp4, mov).")
+            com.intellij.openapi.fileChooser.FileChooser.chooseFiles(descriptor, null, component, null) { chosen ->
+                addMedia(chosen.map { java.io.File(it.path) })
+            }
+        }
+        clipboardSendButton.addActionListener {
+            val text = clipboardField.text
+            if (text.isNotEmpty()) ctx.runOnTargets("Sending clipboard…") { d, _ -> simulation.setClipboard(d, text) }
+        }
+        clipboardReadButton.addActionListener {
+            ctx.runOnTargets("Reading the clipboard…") { d, _ ->
+                val text = simulation.getClipboard(d)
+                if (text == null) ActionResult.failed("Only iOS simulators' clipboards can be read; Android emulators share yours.")
+                else {
+                    com.intellij.openapi.ide.CopyPasteManager.getInstance().setContents(java.awt.datatransfer.StringSelection(text))
+                    ActionResult.done("Copied ${d.name}'s clipboard (${text.length} characters) to yours.")
+                }
+            }
+        }
+    }
+
+    internal fun addMedia(files: List<java.io.File>) = ctx.runOnTargets("Adding media…") { d, _ -> simulation.addMedia(d, files) }
+
     private fun fillCoordinates() {
         val place = placeBox.selectedItem as? GeoPoint
         latField.isEditable = place == null
@@ -116,7 +185,12 @@ internal class SimulateTab(private val ctx: PanelContext, private val simulation
 
     override fun deviceChanged(device: Device?) {
         val usable = device?.isRunning == true
-        listOf(placeBox, latField, lonField, setLocationButton, networkBox, applyNetworkButton, statusBarBox).forEach { it.isEnabled = usable }
+        listOf(placeBox, latField, lonField, setLocationButton, networkBox, applyNetworkButton, statusBarBox, batterySpinner, chargingBox,
+            batteryButton, rotateButton, autoRotateButton, bioMatchButton, bioFailButton, enrollBox, mediaButton, clipboardField,
+            clipboardSendButton, clipboardReadButton).forEach { it.isEnabled = usable }
+        val ios = device?.platform == DevicePlatform.IOS
+        rotateButton.isVisible = !ios; autoRotateButton.isVisible = !ios
+        enrollBox.isVisible = ios; clipboardReadButton.isVisible = ios
         hint.hint = when {
             device == null || !usable -> "Start a device to simulate conditions."
             device.platform == DevicePlatform.IOS -> "Network conditions are Android-emulator only; iOS simulators use your Mac's network."
@@ -127,6 +201,9 @@ internal class SimulateTab(private val ctx: PanelContext, private val simulation
     internal fun setPlace(index: Int) { placeBox.selectedIndex = index }
     internal fun clickSetLocation() = setLocationButton.doClick()
     internal fun applyNetwork(profile: NetworkProfile) { networkBox.selectedItem = profile; applyNetworkButton.doClick() }
+    internal fun setBatteryForTest(level: Int, charging: Boolean) { batterySpinner.value = level; chargingBox.isSelected = charging; batteryButton.doClick() }
+    internal fun clickRotate() = rotateButton.doClick()
+    internal fun clickBiometric(match: Boolean) = (if (match) bioMatchButton else bioFailButton).doClick()
 
     private companion object {
         const val CUSTOM = "Custom…"

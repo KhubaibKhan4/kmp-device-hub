@@ -167,4 +167,29 @@ class ActionsTest {
         assertEquals(listOf("com.acme.notes"), apps.android)
         assertEquals(listOf("com.acme.notes.ios"), apps.ios)
     }
+
+    @Test
+    fun `installs apks and simulator apps, and explains the usual failures`() {
+        val dir = Files.createTempDirectory("builds").toFile()
+        val apk = java.io.File(dir, "app-debug.apk").apply { writeText("x") }
+        val split = java.io.File(dir, "split_config.arm64_v8a.apk").apply { writeText("x") }
+        val app = java.io.File(dir, "iosApp.app").apply { mkdirs() }
+        val aab = java.io.File(dir, "app.aab").apply { writeText("x") }
+        val ipa = java.io.File(dir, "App.ipa").apply { writeText("x") }
+        val runner = FakeRunner(mapOf(
+            "$adb -s emulator-5554 install -r -t -d ${apk.path}" to ok("Performing Streamed Install\nSuccess"),
+            "$adb -s emulator-5554 install-multiple -r -t -d ${apk.path} ${split.path}" to ok("Success"),
+            "$xcrun simctl install $udid ${app.path}" to ok(),
+            "$adb -s R58M install -r -t -d ${apk.path}" to CommandResult(1, "", "adb: failed to install ${apk.path}: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package signatures do not match]"),
+        ))
+        val actions = DeviceActions(runner, tools)
+        assertEquals("Installed app-debug.apk on Pixel 9.", actions.install(emu, listOf(apk)).message)
+        assertEquals("Installed 2 files on Pixel 9.", actions.install(emu, listOf(apk, split)).message)
+        assertEquals("Installed iosApp.app on iPhone 18 Pro.", actions.install(sim, listOf(app)).message)
+        assertContains(actions.install(phone, listOf(apk)).message, "signed with a different key")
+        assertContains(actions.install(emu, listOf(aab)).message, "App Bundle")
+        assertContains(actions.install(sim, listOf(ipa)).message, "device build")
+        assertContains(actions.install(sim, listOf(apk)).message, "isn't an .app")
+        assertContains(actions.install(stoppedSim, listOf(app)).message, "Start iPhone 18 Pro first")
+    }
 }

@@ -24,6 +24,9 @@ interface CommandRunner {
 
     /** Starts a process we stop later (e.g. a screen recording); null when it couldn't start. */
     fun start(command: List<String>): RunningProcess?
+
+    /** Starts a process and calls [onLine] for each line it prints (stdout and stderr), until it ends or is killed. */
+    fun stream(command: List<String>, onLine: (String) -> Unit): RunningProcess? = null
 }
 
 /** A process started with [CommandRunner.start]. */
@@ -64,6 +67,24 @@ class ProcessCommandRunner : CommandRunner {
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()
+    }
+
+    override fun stream(command: List<String>, onLine: (String) -> Unit): RunningProcess? {
+        val process = try {
+            ProcessBuilder(command).redirectErrorStream(true).start()
+        } catch (e: java.io.IOException) {
+            return null
+        }
+        process.outputStream.close()
+        Thread({
+            runCatching { process.inputStream.bufferedReader().forEachLine(onLine) }
+        }, "KMP Device Hub stream: ${command.firstOrNull()}").apply { isDaemon = true; start() }
+        return object : RunningProcess {
+            override val pid get() = process.pid()
+            override val isAlive get() = process.isAlive
+            override fun waitFor(timeoutSeconds: Long) = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+            override fun kill() { process.descendants().forEach { it.destroyForcibly() }; process.destroyForcibly() }
+        }
     }
 
     override fun start(command: List<String>): RunningProcess? {
