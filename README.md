@@ -8,35 +8,74 @@
 
 For Kotlin Multiplatform and Compose Multiplatform developers who test on Android and iOS every day.
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.khubaibkhan4/devicehub-network?label=devicehub-network)](https://central.sonatype.com/artifact/io.github.khubaibkhan4/devicehub-network)
+![Android Studio & IntelliJ IDEA 2025.1+](https://img.shields.io/badge/Android%20Studio%20%26%20IntelliJ-2025.1%2B-7F52FF)
+![Platforms](https://img.shields.io/badge/devices-Android%20%7C%20iOS%20simulator-1E88E5)
+
+[▶ Watch the 1-minute preview](docs/kmp-device-hub-preview.mp4)
+
 </div>
 
-## Status
+## Install
 
-Early development.
+In Android Studio or IntelliJ IDEA (2025.1 or newer): **Settings → Plugins → Marketplace**, search for
+**KMP Device Hub**, install, and restart. Then open the **KMP Devices** tool window (right) and **KMP Network**
+(bottom).
 
-- **Milestone 1 (done):** a **KMP Devices** tool window listing running and stopped Android emulators, connected
-  phones and iOS simulators together, with clear status and live updates.
-- **Milestone 2 (done):** start and shut down emulators and simulators (double-click to start); your app's
-  Android `applicationId` and iOS bundle id are detected from the project; **Launch**, **Stop**, **Clear data** and
-  **Uninstall** on the selected device, with confirmation before anything destructive.
-- **Milestone 3 (done):** grant, revoke and reset app permissions; dark mode and text size; run your app in
-  another language (including right-to-left Arabic, Urdu and Hebrew); open deep links; screenshots saved and copied
-  to the clipboard; Android Wi-Fi debugging (pair and connect).
+You need the Android SDK for Android devices, and macOS with Xcode for iOS simulators. Both are found automatically,
+including the project's `sdk.dir`.
 
-- **Milestone 4 (done, Pro):** apply actions to **all running devices** at once; **test presets** (built-in and your
-  own); **screen recording**; a **push notification tester** (real simulated pushes on iOS, a notification-tap intent
-  with your data on Android); a **deep link library** with links found in your manifest and `Info.plist`;
-  **simulated location**; Android emulator **network conditions** (LTE, 3G, EDGE, GPRS, offline); a **clean 9:41
-  status bar** for store screenshots.
+## Features
 
-- **Milestone 5 (done):** the **Network Inspector**, a **KMP Network** tool window showing every HTTP call your app
-  makes (Ktor on Android/iOS/JVM, or OkHttp/Retrofit on Android). It covers method, URL, status, timing, size, request
-  and response headers and bodies (pretty-printed), a JSON tree, failures, totals, a throughput sparkline and device
-  connectivity. Copy any call as cURL. **Pro:** mock responses, fail requests or add latency (from a rule or
-  right-click → *Mock This Response*), and export HAR.
+### Every device, one panel
 
-Coming next: unified logs (Logcat + simulator log), an app data explorer, installing APK/.app files and more device
-simulation.
+Running and stopped Android emulators, connected phones (USB or Wi-Fi) and iOS simulators in one list, with search and
+a platform filter. Start or shut down any of them, and launch, stop, clear or uninstall your app; its Android
+`applicationId` and iOS bundle id are found in your project.
+
+<img src="docs/screenshots/01-devices.png" alt="Devices panel next to an Android emulator and an iPhone simulator" width="900">
+
+### Dark mode, text size and right-to-left
+
+Switch appearance and text size on Android and iOS, and run your app in another language, including Arabic, Urdu and
+Hebrew for right-to-left layouts. The app restarts in the new language on both platforms.
+
+<img src="docs/screenshots/02-appearance-language.png" alt="Settings tab with an iPhone at the largest text size and Android in Arabic" width="900">
+
+### Permissions
+
+See what your app was granted, then grant, revoke or reset permissions (camera, location, microphone, contacts, photos,
+calendar, notifications) without digging through Settings.
+
+<img src="docs/screenshots/03-permissions.png" alt="Permissions tab with granted and denied states" width="900">
+
+### Network Inspector
+
+Every HTTP call your app makes, Ktor on Android, iOS and JVM or OkHttp/Retrofit on Android: status, timing, size,
+headers, pretty-printed bodies and a JSON tree, plus totals, throughput and device connectivity. Copy any call as cURL.
+[Set it up](#network-inspector-setup) with one line in your `HttpClient`.
+
+<img src="docs/screenshots/04-network-inspector.png" alt="KMP Network window with API calls and a JSON tree" width="900">
+
+Errors stand out: 4xx/5xx responses and failed calls (no connection, unknown host, timeouts). Mock responses, fail
+requests or add latency to test your error states, and export everything as HAR.
+
+<img src="docs/screenshots/05-network-errors.png" alt="A 402 response and a failed call in the Network Inspector" width="900">
+
+### Simulate the real world
+
+Simulated location, Android emulator network conditions (LTE, 3G, EDGE, GPRS or offline), push notifications (a real
+push on iOS, a notification-tap intent on Android), deep links, screenshots, screen recording and a clean 9:41 status
+bar for store screenshots.
+
+<img src="docs/screenshots/06-simulate.png" alt="Simulate tab next to an iPhone home screen with a 9:41 status bar" width="900">
+
+### Test presets
+
+Set several conditions at once: dark mode with the largest text, right-to-left, long German words, a slow or offline
+network, store screenshots, or your own. Turn on **All running devices** to apply anything to every device at once.
+
+<img src="docs/screenshots/07-presets.png" alt="Presets tab next to Android and iOS in Arabic" width="900">
 
 ## Network Inspector setup
 
@@ -64,17 +103,19 @@ by size only. Use `redactHeaders = setOf("Authorization")` to keep secrets out o
 It's on Maven Central (`mavenCentral()`), so no extra repository is needed. To try local changes, publish with
 `./gradlew :network:publishToMavenLocal` and add `mavenLocal()`.
 
-## Pro
+## Free and Pro
 
-Pro is sold through JetBrains Marketplace, which also runs the free trial. Builds made without a product code (the
-default) are free early-access builds with every Pro feature on. Once Marketplace approves the paid plan and assigns a
-product code:
+Everything is free during early access. Later, a Pro plan through JetBrains Marketplace (with a free trial) will cover
+the power features: all-devices actions, presets, screen recording, the push tester, the deep link library, location,
+network conditions and the clean status bar, and the Network Inspector's mocking and HAR export. Device control,
+settings, permissions and the Network Inspector itself stay free.
 
-```bash
-./gradlew :idea-plugin:buildPlugin -Pdevicehub.productCode=<CODE>   # adds an optional (freemium) product-descriptor
-```
+## Roadmap
 
-Bump `devicehub.releaseDate` / `devicehub.releaseVersion` in `gradle.properties` for each major release.
+- Unified logs: Logcat and the iOS simulator log in one view, filtered to your app
+- App data explorer: files, preferences and SQLite databases on the device
+- Install an APK or `.app` by dragging it onto a device
+- Battery, rotation, biometrics, media and clipboard simulation
 
 ## How it works
 
@@ -82,9 +123,8 @@ Bump `devicehub.releaseDate` / `devicehub.releaseVersion` in `gradle.properties`
 |---|---|
 | [`core`](core) | Dependency-free engine: finds `adb`, `emulator` and `xcrun`, lists devices, and runs every device action, setting, simulation and preset through them. Every command goes through a `CommandRunner`, faked in tests. |
 | [`network`](network) | `devicehub-network`, the Kotlin Multiplatform library (JVM/Android, iOS) apps add to send their HTTP calls to the Network Inspector: a Ktor client plugin and an OkHttp interceptor. |
-| [`idea-plugin`](idea-plugin) | The KMP Devices tool window for Android Studio and IntelliJ IDEA 2025.1+. |
-
-Requirements: the Android SDK for Android devices; macOS with Xcode for iOS simulators.
+| [`idea-plugin`](idea-plugin) | The KMP Devices and KMP Network tool windows for Android Studio and IntelliJ IDEA 2025.1+. |
+| [`samples/network-demo`](samples/network-demo) | A small Android + iOS app for trying the Network Inspector. |
 
 ## Development
 
@@ -94,5 +134,8 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ./gradlew build                 # all tests
 ./gradlew :idea-plugin:runIde   # sandbox IDE with the plugin
 ```
+
+Releasing (plugin, Maven Central, listing screenshots and video) is described in [RELEASE.md](RELEASE.md) and
+[tools/listing](tools/listing/README.md).
 
 © 2026 Khubaib Khan. All rights reserved.
