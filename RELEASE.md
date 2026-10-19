@@ -6,15 +6,15 @@ Ship Milestones 1–5 free (every Pro feature on) to build an audience, while th
 
 ### Your steps (accounts and keys only you can create)
 
-- [ ] **Sonatype Central Portal** account at central.sonatype.com; verify the `io.github.khubaibkhan4` namespace (GitHub login does this).
-- [ ] **GPG key** for signing the library: `gpg --full-generate-key`, then publish it: `gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`.
+- [x] **Sonatype Central Portal** account at central.sonatype.com; verify the `io.github.khubaibkhan4` namespace (GitHub login does this).
+- [x] **GPG key** for signing the library: `gpg --full-generate-key`, then publish it: `gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`.
 - [ ] Store secrets with `gh secret set` (it prompts; never paste them in chat): `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_KEY`, `SIGNING_PASSWORD`, `PUBLISH_TOKEN` (Marketplace).
 - [ ] **Fix GitHub billing** so CI runs, and decide whether the repo goes public at launch.
 - [ ] **Paid plan**: apply in JetBrains Marketplace → your vendor profile → Sales. They assign the product code used below.
 
 ### Build steps (Claude can do these)
 
-- [x] Maven Central publishing for `network/` is set up (`./gradlew :network:publishToMavenCentral`, then release the deployment on central.sonatype.com). Needs `mavenCentralUsername` / `mavenCentralPassword` / `signing.gnupg.keyName` in `~/.gradle/gradle.properties`.
+- [x] `io.github.khubaibkhan4:devicehub-network:0.1.0` published to Maven Central (2026-10-19). Publishing is set up (`./gradlew :network:publishToMavenCentral`, then release the deployment on central.sonatype.com). Needs `mavenCentralUsername` / `mavenCentralPassword` / `signing.gnupg.keyName` in `~/.gradle/gradle.properties`.
 - [ ] Screenshots: the Devices panel (App, Settings, Simulate, Presets tabs), the KMP Network window, the iOS push banner, and the Arabic RTL screen.
 - [ ] A 60–90 s demo video (same style as the Dependency Hub one).
 - [ ] `./gradlew build :idea-plugin:verifyPlugin -Pdevicehub.verifyRecommended=true`, then `./gradlew :idea-plugin:buildPlugin` **without** `-Pdevicehub.productCode` (the free build).

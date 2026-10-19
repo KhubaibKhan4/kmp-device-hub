@@ -12,11 +12,8 @@ Add a mock rule in the IDE during the first round and you'll see it in the secon
 
 ## Run it
 
-Publish the library first, from the repository root:
-
-```bash
-./gradlew :network:publishToMavenLocal
-```
+The library comes from Maven Central. To try local changes to it, publish them first with
+`./gradlew :network:publishToMavenLocal` from the repository root.
 
 **Android** (open the KMP Network tool window first; it sets up `adb reverse` for you):
 
