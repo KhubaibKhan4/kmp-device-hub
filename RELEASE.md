@@ -41,7 +41,18 @@ Ship Milestones 1–5 free (every Pro feature on) to build an audience, while th
 
 ## Paid release (after approval)
 
-- [ ] Add JetBrains' signed-license verification to `ProLicense.isLicensed()` (today it only checks that a license stamp exists).
-- [ ] Ship a no-op `devicehub-network` variant so release builds can depend on it safely.
-- [ ] Bump `devicehub.releaseDate` / `devicehub.releaseVersion` in `gradle.properties`.
-- [ ] Build with `./gradlew :idea-plugin:buildPlugin -Pdevicehub.productCode=<CODE>`; Pro then needs a license or the Marketplace trial.
+Applied for the paid plan on 2026-10-19.
+
+- [x] JetBrains' signed-license verification (`LicenseVerifier`, ported from their reference code): license keys and
+      license-server tickets must chain to JetBrains' roots; results are cached for 6 hours.
+- [x] `devicehub-network-noop`: the same API, doing nothing, for release builds. Publish it to Maven Central with the
+      library (`./gradlew :network-noop:publishToMavenCentral`, then Publish on central.sonatype.com).
+- [ ] When JetBrains assigns the **product code** (capital letters only, starts with P, 4–15 characters):
+  - Set `devicehub.version=1.0.0`, `devicehub.releaseVersion=10` and `devicehub.releaseDate` to the launch date
+    (YYYYMMDD) in `gradle.properties`. Keep them for 1.0.x updates; changing them resets trials.
+  - `./gradlew build :idea-plugin:verifyPlugin -Pdevicehub.verifyRecommended=true`
+  - `./gradlew :idea-plugin:buildPlugin -Pdevicehub.productCode=<CODE>` and upload it.
+- [ ] Android Studio: paid plugins need the free **JetBrains Marketplace Licensing Support** plugin. The Plugin Manager
+      usually installs it with a paid plugin, but not always (and not for zips installed from disk). When it's missing,
+      Pro features explain how to install it instead of offering a trial.
+- [ ] JetBrains recommends obfuscating paid plugins before upload (e.g. Zelix KlassMaster); optional.

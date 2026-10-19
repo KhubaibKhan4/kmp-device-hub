@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Pro licenses are verified against JetBrains' signatures (license keys and license-server tickets), as JetBrains recommends.
+- In Android Studio without the JetBrains Marketplace Licensing Support plugin, Pro features explain how to install it.
+- New `devicehub-network-noop` artifact for release builds.
+
 ## 0.4.0
 
 - Store screenshots (Presets tab): pick languages and dark mode, and get your app's screenshots from every running device with a clean 9:41 status bar, saved to one folder per device. Warns if a system "isn't responding" dialog was on screen.

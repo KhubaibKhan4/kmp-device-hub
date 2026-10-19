@@ -41,32 +41,72 @@ object ProLicense {
         Regex("""<product-descriptor\b[^>]*\bcode="([^"]+)"""").find(xml)?.groupValues?.get(1)
     }
 
-    fun isLicensed(): Boolean {
-        val code = productCode ?: return true
-        if (devOverride()) return true
-        val stamp = LicensingFacade.getInstance()?.getConfirmationStamp(code) ?: return false
-        // key: a license key, stamp: a JetBrains Account license, eval: the Marketplace trial.
-        return stamp.startsWith("key:") || stamp.startsWith("stamp:") || stamp.startsWith("eval:")
+    enum class Status { FREE_BUILD, LICENSED, NOT_LICENSED, LICENSING_UNAVAILABLE }
+
+    private val verifier = LicenseVerifier()
+    @Volatile private var cached: Pair<Status, Long>? = null
+
+    /**
+     * Whether Pro is unlocked. The IDE checks the license itself at startup and daily; this verifies the stamp it hands
+     * us really comes from JetBrains, and caches the answer (JetBrains asks for only a few checks a day).
+     */
+    fun isLicensed(): Boolean = status().let { it == Status.FREE_BUILD || it == Status.LICENSED } || devOverride()
+
+    fun status(): Status {
+        val code = productCode ?: return Status.FREE_BUILD
+        cached?.let { (status, at) -> if (System.currentTimeMillis() - at < CACHE_MS) return status }
+        // No facade: the IDE's licensing isn't loaded yet, or (Android Studio, community IDEs) the
+        // "JetBrains Marketplace Licensing Support" plugin isn't installed. Don't cache, so it's picked up once it is.
+        val facade = LicensingFacade.getInstance() ?: return Status.LICENSING_UNAVAILABLE
+        val status = if (verifier.isValid(facade.getConfirmationStamp(code))) Status.LICENSED else Status.NOT_LICENSED
+        cached = status to System.currentTimeMillis()
+        return status
     }
 
-    /** `-Dkmpdevicehub.pro=true` unlocks Pro in tests and the sandbox IDE only. */
+    /** `-Dkmpdevicehub.pro=true` unlocks Pro in the plugin's own tests only. */
     private fun devOverride(): Boolean {
         val app = ApplicationManager.getApplication() ?: return false
-        return (app.isUnitTestMode || app.isInternal) && System.getProperty("kmpdevicehub.pro") == "true"
+        return app.isUnitTestMode && System.getProperty("kmpdevicehub.pro") == "true"
     }
 
-    /** Explains Pro and offers the trial; returns after the dialog closes. */
+    /** Explains Pro and offers the trial (or how to enable licensing); returns after the dialog closes. */
     fun showUpsell(project: Project, feature: String, component: Component?) {
+        if (status() == Status.LICENSING_UNAVAILABLE) {
+            val choice = Messages.showDialog(project,
+                "$feature is part of KMP Device Hub Pro.\n\nThis IDE can't check JetBrains Marketplace licenses yet. In Android Studio and other " +
+                    "community IDEs, install the free \"JetBrains Marketplace Licensing Support\" plugin (Settings → Plugins → Marketplace), " +
+                    "restart, and then start your free trial.",
+                "KMP Device Hub Pro", arrayOf("Open Plugins", "Not Now"), 0, Messages.getInformationIcon())
+            if (choice == 0) com.intellij.ide.actions.ShowSettingsUtilImpl.showSettingsDialog(project, "preferences.pluginManager", "JetBrains Marketplace Licensing")
+            return
+        }
         val message = buildString {
             append("$feature is part of KMP Device Hub Pro.\n\nPro adds:\n")
             features.forEach { append("  • ").append(it).append('\n') }
             append("\nTry it free: JetBrains Marketplace runs the trial, and you keep everything else in the free version.")
         }
         val choice = Messages.showDialog(project, message, "KMP Device Hub Pro", arrayOf("Start Free Trial", "Not Now"), 0, Messages.getInformationIcon())
-        if (choice != 0) return
-        // The IDE's own license dialog lists paid plugins with a trial button; fall back to the Marketplace page.
-        val register = ActionManager.getInstance().getAction("Register")
-        if (register == null || component == null) BrowserUtil.browse(MARKETPLACE_URL)
-        else ActionManager.getInstance().tryToExecute(register, null, component, "KmpDeviceHub", true)
+        if (choice == 0) requestLicense(message)
     }
+
+    /** Opens the IDE's license dialog with KMP Device Hub preselected, as JetBrains' reference code does. */
+    private fun requestLicense(message: String) {
+        val code = productCode
+        val actions = ActionManager.getInstance()
+        val register = actions.getAction("RegisterPlugins") ?: actions.getAction("Register")
+        if (code == null || register == null) { BrowserUtil.browse(MARKETPLACE_URL); return }
+        val context = com.intellij.openapi.actionSystem.DataContext { id ->
+            when (id) {
+                "register.product-descriptor.code" -> code
+                "register.message" -> message
+                else -> null
+            }
+        }
+        com.intellij.openapi.actionSystem.ex.ActionUtil.performAction(register,
+            com.intellij.openapi.actionSystem.AnActionEvent.createEvent(context, com.intellij.openapi.actionSystem.Presentation(), "",
+                com.intellij.openapi.actionSystem.ActionUiKind.NONE, null))
+        cached = null
+    }
+
+    private const val CACHE_MS = 6 * 60 * 60 * 1000L
 }

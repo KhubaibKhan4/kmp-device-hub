@@ -131,6 +131,14 @@ by size only. Use `redactHeaders = setOf("Authorization")` to keep secrets out o
 
 **Only enable it in debug builds**: it sends your app's traffic, headers included, to whatever listens on that port.
 
+For release builds, depend on `io.github.khubaibkhan4:devicehub-network-noop` instead: the same API, doing nothing,
+so your code compiles unchanged and no traffic ever leaves a release build. In an Android-only app:
+
+```kotlin
+debugImplementation("io.github.khubaibkhan4:devicehub-network:0.1.0")
+releaseImplementation("io.github.khubaibkhan4:devicehub-network-noop:0.1.0")
+```
+
 It's on Maven Central (`mavenCentral()`), so no extra repository is needed. To try local changes, publish with
 `./gradlew :network:publishToMavenLocal` and add `mavenLocal()`.
 

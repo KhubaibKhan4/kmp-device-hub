@@ -133,8 +133,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 tasks.named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
     val openProject = providers.gradleProperty("devicehub.openProject")
     argumentProviders += CommandLineArgumentProvider { listOfNotNull(openProject.orNull) }
-    // Lets the sandbox IDE try Pro in a paid build (honoured only in internal mode, never in a user's IDE).
-    jvmArgs("-Didea.is.internal=true", "-Dkmpdevicehub.pro=true")
 }
 
 // The IDE test fixture plus panel renders need more than the default heap on CI runners.
