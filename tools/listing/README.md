@@ -9,3 +9,5 @@
    → a ~64 s 1920×1080 preview video. Needs Pillow and ffmpeg.
 5. `python3 tools/listing/make_banner.py idea-plugin/build/listing <footage> dist/listing/banner.png`
    → the 1920×1080 banner (same style as KMP Dependency Hub's); a copy lives in `docs/banner.png` for the README.
+6. `python3 tools/listing/make_thumbnails.py idea-plugin/build/listing <footage> dist/listing/thumbnails`
+   → three 1280×720 YouTube thumbnails for A/B testing (one panel; RTL + dark mode; Network Inspector).
