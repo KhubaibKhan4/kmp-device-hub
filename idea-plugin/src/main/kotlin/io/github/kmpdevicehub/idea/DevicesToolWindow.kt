@@ -149,6 +149,9 @@ class DevicesPanel(
     private val resetPermissionsButton = JButton("Reset all")
     private val permissionsHint = HintLabel()
 
+    private val searchField = com.intellij.ui.SearchTextField(false).apply { textEditor.emptyText.text = "Search devices" }
+    private val platformBox = ComboBox(DefaultComboBoxModel(arrayOf(ALL_PLATFORMS, "Android", "iOS")))
+    private val header = DeviceHeader()
     private val allDevicesBox = JBCheckBox("All running devices").apply {
         toolTipText = "Apply settings, links, launches, presets and pushes to every running device at once (Pro)"
     }
@@ -237,6 +240,15 @@ class DevicesPanel(
             val id = appId()
             run("Resetting permissions…") { settings.resetPermissions(d, id) }
         }
+        searchField.addDocumentListener(object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: javax.swing.event.DocumentEvent) = show(lastList)
+        })
+        platformBox.addActionListener { show(lastList) }
+        header.powerButton.addActionListener {
+            val d = selectedDevice() ?: return@addActionListener
+            if (canStart(d)) start(d) else if (canShutdown(d)) shutdown(d)
+        }
+        header.screenshotButton.addActionListener { selectedDevice()?.takeIf { it.isRunning }?.let(::screenshot) }
         allDevicesBox.addActionListener {
             if (allDevicesBox.isSelected && !requirePro("Actions on all running devices")) allDevicesBox.isSelected = false
         }
@@ -245,7 +257,9 @@ class DevicesPanel(
             row("App:") { cell(appBox).align(AlignX.FILL).resizableColumn() }
             row { cell(installed) }
             row { cell(launchButton); cell(stopAppButton) }
+            separator()
             row { cell(clearButton); cell(uninstallButton) }
+            row { comment("Clear data and Uninstall ask before they run.") }
         }
         val settingsTab = panel {
             row { cell(darkBox) }
@@ -277,21 +291,32 @@ class DevicesPanel(
             "Presets" to presetsTab.component,
         ).forEach { (title, content) -> tabs.addTab(TabInfo(content).setText(title)) }
         val appPanel = JPanel(BorderLayout()).apply {
-            add(panel { row { cell(allDevicesBox) } }.apply { border = JBUI.Borders.empty(4, 10, 0, 10) }, BorderLayout.NORTH)
+            add(JPanel(BorderLayout()).apply {
+                add(header, BorderLayout.NORTH)
+                add(panel { row { cell(allDevicesBox) } }.apply { border = JBUI.Borders.empty(4, 10, 0, 10) }, BorderLayout.CENTER)
+            }, BorderLayout.NORTH)
             add(tabs.component, BorderLayout.CENTER)
             add(panel {
                 row { cell(result) }
                 row { cell(status) }
             }.apply { border = JBUI.Borders.empty(2, 10, 6, 10) }, BorderLayout.SOUTH)
-            border = JBUI.Borders.customLineTop(JBColor.border())
         }
 
+        val filters = JPanel(BorderLayout(JBUI.scale(6), 0)).apply {
+            add(searchField, BorderLayout.CENTER)
+            add(platformBox, BorderLayout.EAST)
+            border = JBUI.Borders.empty(4, 8)
+        }
         add(JPanel(BorderLayout()).apply {
             add(toolbar.component, BorderLayout.NORTH)
             add(notices, BorderLayout.CENTER)
+            add(filters, BorderLayout.SOUTH)
         }, BorderLayout.NORTH)
-        add(ScrollPaneFactory.createScrollPane(list, true), BorderLayout.CENTER)
-        add(appPanel, BorderLayout.SOUTH)
+        // A draggable divider between the list and the device tabs; its position is remembered.
+        add(com.intellij.ui.OnePixelSplitter(true, "kmpdevicehub.devices.split", 0.45f).apply {
+            firstComponent = ScrollPaneFactory.createScrollPane(list, true)
+            secondComponent = appPanel
+        }, BorderLayout.CENTER)
 
         selectionChanged()
         ApplicationManager.getApplication().executeOnPooledThread {
@@ -330,12 +355,19 @@ class DevicesPanel(
 
     private fun show(loaded: DeviceList) {
         val selectedId = selectedDevice()?.id
-        model.replaceAll(rowsFor(loaded))
+        val query = searchField.text.trim()
+        val platform = when (platformBox.selectedItem) { "Android" -> DevicePlatform.ANDROID; "iOS" -> DevicePlatform.IOS; else -> null }
+        val shown = filtered(loaded, query, platform)
+        model.replaceAll(rowsFor(shown))
         if (selectedId != null) {
             val index = (0 until model.size).firstOrNull { (model.getElementAt(it) as? Row.Item)?.device?.id == selectedId }
             if (index != null) list.selectedIndex = index
         }
-        list.emptyText.text = if (loaded.problems.isEmpty()) "No devices or simulators found" else "No devices found"
+        list.emptyText.text = when {
+            shown.devices.isEmpty() && loaded.devices.isNotEmpty() -> "No devices match the search"
+            loaded.problems.isEmpty() -> "No devices or simulators found"
+            else -> "No devices found"
+        }
 
         notices.removeAll()
         loaded.problems.forEach { problem ->
@@ -408,6 +440,7 @@ class DevicesPanel(
         listOf(appBox, launchButton, stopAppButton, clearButton, uninstallButton, darkBox, textSizeBox, languageBox,
             applyLanguageButton, resetPermissionsButton).forEach { it.isEnabled = usable }
         deviceTabs.forEach { it.deviceChanged(device) }
+        header.show(device)
         permissionButtons.forEach { (permission, buttons) ->
             val supported = device?.platform != DevicePlatform.IOS || permission.ios != null
             buttons.first.isEnabled = usable && supported
@@ -420,6 +453,7 @@ class DevicesPanel(
             choices.isEmpty() -> "Type your app id (no ${if (device.platform == DevicePlatform.ANDROID) "applicationId" else "bundle id"} found in this project)."
             else -> "Checking ${device.name}…"
         }
+        installed.foreground = UIUtil.getContextHelpForeground()
         checkInstalled()
     }
 
@@ -437,6 +471,7 @@ class DevicesPanel(
             onEdt {
                 if (selectedDevice()?.id == device.id && appId() == id) {
                     installed.text = if (yes) "✓ Installed on ${device.name}" else "Not installed on ${device.name}"
+                    installed.foreground = if (yes) DeviceColors.running else UIUtil.getContextHelpForeground()
                 }
             }
         }
@@ -623,6 +658,16 @@ class DevicesPanel(
     companion object {
         private const val REFRESH_MS = 4_000
         private const val DEVICE_LANGUAGE = "Device language"
+        private const val ALL_PLATFORMS = "All platforms"
+
+        /** Devices whose name, OS or kind contains every word of [query], on [platform] (null: both). */
+        internal fun filtered(result: DeviceList, query: String, platform: DevicePlatform?): DeviceList {
+            val words = query.lowercase().split(' ').filter { it.isNotBlank() }
+            return result.copy(devices = result.devices.filter { d ->
+                (platform == null || d.platform == platform) &&
+                    words.all { w -> "${d.name} ${d.osLabel} ${d.kind.name} ${d.platform.name}".lowercase().contains(w) }
+            })
+        }
 
         private fun <T> labelRenderer(text: (Any?) -> String?) = object : com.intellij.ui.ColoredListCellRenderer<T>() {
             override fun customizeCellRenderer(list: javax.swing.JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
@@ -671,6 +716,9 @@ class DevicesPanel(
     internal val links get() = linksTab
     internal fun toggleRecordingForTest() = toggleRecording()
     internal val isRecording: Boolean get() = recording != null
+    internal fun filterDevices(query: String, platform: String = ALL_PLATFORMS) { searchField.text = query; platformBox.selectedItem = platform; show(lastList) }
+    internal val headerTitle: String get() = header.title
+    internal val headerPower: String get() = header.powerText
     internal fun selectTab(title: String) { tabs.tabs.firstOrNull { it.text == title }?.let { tabs.select(it, false) } }
     internal val tabTitles: List<String> get() = tabs.tabs.map { it.text }
     internal fun takeScreenshot() = selectedDevice()?.let(::screenshot)

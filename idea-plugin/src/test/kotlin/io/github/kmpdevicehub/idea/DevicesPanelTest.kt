@@ -57,6 +57,23 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue(waitFor { panel.rowCount == 9 })
         assertEquals("6 devices · 2 running", panel.statusText)
         assertEquals(1, panel.noticeCount)
+        assertEquals("No device selected", panel.headerTitle)
+
+        panel.filterDevices("iphone")
+        assertEquals("Running + iPhone 18 Pro, iOS simulators + iPhone 17e", 4, panel.rowCount)
+        panel.filterDevices("", "Android")
+        assertEquals("Running: emulator + phone; Android emulators: Pixel Tablet", 5, panel.rowCount)
+        panel.filterDevices("pixel tab")
+        assertEquals(2, panel.rowCount)
+        panel.filterDevices("")
+        assertEquals(9, panel.rowCount)
+
+        panel.select("avd:Pixel_Tablet")
+        assertTrue(waitFor { panel.headerTitle == "Pixel Tablet" })
+        assertEquals("Start", panel.headerPower)
+        panel.select("emulator-5554")
+        assertTrue(waitFor { panel.headerTitle == "Medium Phone API 37.0" })
+        assertEquals("Shut down", panel.headerPower)
     }
 
     /** Uses the real adb/xcrun when present; on machines without them it must report problems, not crash. */

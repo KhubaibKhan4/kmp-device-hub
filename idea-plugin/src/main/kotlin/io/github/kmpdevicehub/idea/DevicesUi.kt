@@ -172,3 +172,61 @@ internal class DeviceRenderer : ListCellRenderer<Row> {
         return card
     }
 }
+
+/** The selected device above the tabs, so it's always clear which device the actions apply to. */
+internal class DeviceHeader : JPanel(BorderLayout(JBUI.scale(10), 0)) {
+    private val dot = StatusDot()
+    private val nameLabel = JLabel().apply { font = JBFont.h4().asBold() }
+    private val platform = Badge()
+    private val kindLabel = JLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
+    private val details = JLabel().apply { font = JBFont.small() }
+    val powerButton = javax.swing.JButton()
+    val screenshotButton = javax.swing.JButton(com.intellij.icons.AllIcons.FileTypes.Image).apply { toolTipText = "Screenshot (saved and copied to the clipboard)" }
+
+    init {
+        border = JBUI.Borders.compound(JBUI.Borders.customLineBottom(JBColor.border()), JBUI.Borders.empty(8, 12))
+        val top = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0)).apply { isOpaque = false; add(nameLabel); add(platform); add(kindLabel) }
+        val center = JPanel(BorderLayout(0, JBUI.scale(2))).apply {
+            isOpaque = false
+            add(top, BorderLayout.NORTH)
+            add(details, BorderLayout.CENTER)
+        }
+        add(JPanel(BorderLayout()).apply { isOpaque = false; add(dot, BorderLayout.CENTER) }, BorderLayout.WEST)
+        add(center, BorderLayout.CENTER)
+        add(JPanel(FlowLayout(FlowLayout.RIGHT, JBUI.scale(4), 0)).apply { isOpaque = false; add(powerButton); add(screenshotButton) }, BorderLayout.EAST)
+        show(null)
+    }
+
+    val title: String get() = nameLabel.text.orEmpty()
+    val powerText: String get() = powerButton.text.orEmpty()
+
+    fun show(device: Device?) {
+        val visible = device != null
+        listOf(platform, kindLabel, dot, powerButton, screenshotButton).forEach { it.isVisible = visible }
+        if (device == null) {
+            nameLabel.text = "No device selected"
+            nameLabel.foreground = UIUtil.getContextHelpForeground()
+            details.text = "Pick an emulator, phone or simulator from the list."
+            details.foreground = UIUtil.getContextHelpForeground()
+            return
+        }
+        nameLabel.text = device.name
+        nameLabel.foreground = UIUtil.getLabelForeground()
+        platform.text = if (device.platform == DevicePlatform.ANDROID) "Android" else "iOS"
+        platform.color = if (device.platform == DevicePlatform.ANDROID) DeviceColors.android else DeviceColors.ios
+        kindLabel.text = when (device.kind) {
+            DeviceKind.PHYSICAL -> "Device"
+            DeviceKind.EMULATOR -> "Emulator"
+            DeviceKind.SIMULATOR -> "Simulator"
+        }
+        dot.color = DeviceColors.of(device.state)
+        details.text = "${device.osLabel}  ·  ${DeviceColors.label(device.state)}"
+        details.foreground = if (device.state == DeviceState.UNAUTHORIZED || device.state == DeviceState.OFFLINE) DeviceColors.problem else UIUtil.getContextHelpForeground()
+        val canStart = device.state == DeviceState.STOPPED && (device.platform == DevicePlatform.IOS || device.kind == DeviceKind.EMULATOR)
+        val canStop = device.isRunning && device.kind != DeviceKind.PHYSICAL
+        powerButton.isVisible = canStart || canStop
+        powerButton.text = if (canStart) "Start" else "Shut down"
+        powerButton.icon = if (canStart) com.intellij.icons.AllIcons.Actions.Execute else com.intellij.icons.AllIcons.Actions.Suspend
+        screenshotButton.isVisible = device.isRunning
+    }
+}
