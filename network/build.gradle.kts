@@ -51,5 +51,30 @@ tasks.named<Test>("jvmTest") {
 publishing {
     publications.withType<MavenPublication>().configureEach {
         artifactId = artifactId.replaceFirst("network", "devicehub-network")
+        pom {
+            name = "KMP Device Hub Network"
+            description = "Sends your app's HTTP calls (Ktor or OkHttp) to the KMP Device Hub Network Inspector in Android Studio / IntelliJ IDEA."
+            url = "https://github.com/KhubaibKhan4/kmp-device-hub"
+            licenses {
+                license {
+                    name = "Apache-2.0"
+                    url = "https://www.apache.org/licenses/LICENSE-2.0"
+                }
+            }
+            developers {
+                developer {
+                    id = "KhubaibKhan4"
+                    name = "Khubaib Khan"
+                }
+            }
+            scm { url = "https://github.com/KhubaibKhan4/kmp-device-hub" }
+        }
+    }
+    repositories {
+        // ./gradlew :network:publishAllPublicationsToDistRepository — a Maven repository folder to zip and share for testing.
+        maven {
+            name = "dist"
+            url = uri(rootProject.layout.projectDirectory.dir("dist/maven"))
+        }
     }
 }
