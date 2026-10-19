@@ -14,7 +14,7 @@ Ship Milestones 1–5 free (every Pro feature on) to build an audience, while th
 
 ### Build steps (Claude can do these)
 
-- [ ] Maven Central publishing for `network/` (POM, signing from env vars, Central Portal upload); publish `io.github.khubaibkhan4:devicehub-network:0.1.0`.
+- [x] Maven Central publishing for `network/` is set up (`./gradlew :network:publishToMavenCentral`, then release the deployment on central.sonatype.com). Needs `mavenCentralUsername` / `mavenCentralPassword` / `signing.gnupg.keyName` in `~/.gradle/gradle.properties`.
 - [ ] Screenshots: the Devices panel (App, Settings, Simulate, Presets tabs), the KMP Network window, the iOS push banner, and the Arabic RTL screen.
 - [ ] A 60–90 s demo video (same style as the Dependency Hub one).
 - [ ] `./gradlew build :idea-plugin:verifyPlugin -Pdevicehub.verifyRecommended=true`, then `./gradlew :idea-plugin:buildPlugin` **without** `-Pdevicehub.productCode` (the free build).
