@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="idea-plugin/src/main/resources/META-INF/pluginIcon.svg" width="96" alt="KMP Device Hub icon">
+<img src="docs/banner.png" alt="KMP Device Hub: every Android device, emulator and iOS simulator in one panel" width="900">
 
 # KMP Device Hub
 

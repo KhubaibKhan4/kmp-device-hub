@@ -7,3 +7,5 @@
    → seven 2560×1600 Marketplace screenshots.
 4. `python3 tools/listing/make_preview_video.py idea-plugin/build/listing <footage> dist/listing <out>.mp4`
    → a ~64 s 1920×1080 preview video. Needs Pillow and ffmpeg.
+5. `python3 tools/listing/make_banner.py idea-plugin/build/listing <footage> dist/listing/banner.png`
+   → the 1920×1080 banner (same style as KMP Dependency Hub's); a copy lives in `docs/banner.png` for the README.
