@@ -22,7 +22,9 @@ import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBList
-import com.intellij.ui.components.JBTabbedPane
+import com.intellij.ui.tabs.JBTabs
+import com.intellij.ui.tabs.JBTabsFactory
+import com.intellij.ui.tabs.TabInfo
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.dsl.builder.AlignX
@@ -158,7 +160,7 @@ class DevicesPanel(
 
     @Volatile
     private var recording: ScreenRecording? = null
-    private lateinit var tabs: JBTabbedPane
+    private lateinit var tabs: JBTabs
 
     /** True while controls are being set from device state, so their listeners don't act. */
     private var updating = false
@@ -263,19 +265,20 @@ class DevicesPanel(
             row { cell(resetPermissionsButton) }
             row { cell(permissionsHint) }
         }
-        tabs = JBTabbedPane().apply {
-            tabLayoutPolicy = javax.swing.JTabbedPane.SCROLL_TAB_LAYOUT
-            addTab("App", appTab)
-            addTab("Settings", settingsTab)
-            addTab("Permissions", ScrollPaneFactory.createScrollPane(permissionsTab, true))
-            addTab("Links", linksTab.component)
-            addTab("Simulate", ScrollPaneFactory.createScrollPane(simulateTab.component, true))
-            addTab("Push", pushTab.component)
-            addTab("Presets", presetsTab.component)
-        }
+        // The IDE's own tabs (as in editors and tool windows): readable in every theme, with an overflow menu when narrow.
+        tabs = JBTabsFactory.createTabs(project, parent)
+        listOf(
+            "App" to appTab,
+            "Settings" to settingsTab,
+            "Permissions" to ScrollPaneFactory.createScrollPane(permissionsTab, true),
+            "Links" to linksTab.component,
+            "Simulate" to ScrollPaneFactory.createScrollPane(simulateTab.component, true),
+            "Push" to pushTab.component,
+            "Presets" to presetsTab.component,
+        ).forEach { (title, content) -> tabs.addTab(TabInfo(content).setText(title)) }
         val appPanel = JPanel(BorderLayout()).apply {
             add(panel { row { cell(allDevicesBox) } }.apply { border = JBUI.Borders.empty(4, 10, 0, 10) }, BorderLayout.NORTH)
-            add(tabs, BorderLayout.CENTER)
+            add(tabs.component, BorderLayout.CENTER)
             add(panel {
                 row { cell(result) }
                 row { cell(status) }
@@ -668,7 +671,8 @@ class DevicesPanel(
     internal val links get() = linksTab
     internal fun toggleRecordingForTest() = toggleRecording()
     internal val isRecording: Boolean get() = recording != null
-    internal fun selectTab(title: String) { tabs.selectedIndex = tabs.indexOfTab(title) }
+    internal fun selectTab(title: String) { tabs.tabs.firstOrNull { it.text == title }?.let { tabs.select(it, false) } }
+    internal val tabTitles: List<String> get() = tabs.tabs.map { it.text }
     internal fun takeScreenshot() = selectedDevice()?.let(::screenshot)
     internal val darkModeChecked: Boolean get() = darkBox.isSelected
 }

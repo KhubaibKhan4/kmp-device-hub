@@ -181,6 +181,7 @@ class DevicesPanelTest : BasePlatformTestCase() {
         val runner = RecordingRunner()
         val panel = proPanel(runner, pro = true)
         assertTrue(waitFor { panel.rowCount == 9 })
+        assertEquals(listOf("App", "Settings", "Permissions", "Links", "Simulate", "Push", "Presets"), panel.tabTitles)
         panel.select("emulator-5554")
         assertTrue(waitFor { panel.currentAppId == "org.example.project" })
 
