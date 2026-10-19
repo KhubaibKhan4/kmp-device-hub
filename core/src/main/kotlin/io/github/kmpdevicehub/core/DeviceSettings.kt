@@ -231,6 +231,14 @@ class DeviceSettings(
         }
     }
 
+    /** The package of an "isn't responding" dialog covering an Android screen, or null. */
+    fun notRespondingDialog(device: Device): String? {
+        if (device.platform != DevicePlatform.ANDROID || !device.isRunning) return null
+        val adb = tools.adb ?: return null
+        val windows = runner.run(listOf(adb, "-s", device.id, "shell", "dumpsys", "window", "windows")).stdout
+        return Regex("""Window\{\S+ \S+ Application Not Responding: ([\w.]+)}""").find(windows)?.groupValues?.get(1)
+    }
+
     // ---- Wi-Fi debugging (Android 11+) --------------------------------------------------------------------
 
     /** Pairs with the code shown under Developer options → Wireless debugging → Pair device with pairing code. */

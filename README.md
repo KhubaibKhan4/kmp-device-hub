@@ -72,12 +72,16 @@ The **KMP Logs** window streams your app's logs: Android's logcat filtered to yo
 simulators the unified log for your app, or its stdout so Kotlin/Native `println` shows up too. Filter by level, search,
 and copy what you see.
 
+<img src="docs/screenshots/08-logs.png" alt="KMP Logs streaming an Android app's logcat" width="900">
+
 ### App data explorer
 
 The **KMP App Data** window opens your app's private data: files on Android (debug builds, through `run-as`, like
 Android Studio's Device Explorer) and in iOS simulator containers; SharedPreferences and NSUserDefaults as key / type /
 value tables; and SQLite databases (Room, SQLDelight, Core Data) with a table view and read-only SQL on a snapshot that
 includes the WAL. Text and JSON are pretty-printed, images previewed, and files can be downloaded or deleted.
+
+<img src="docs/screenshots/09-app-data.png" alt="KMP App Data showing a SQLite table from a simulator app" width="900">
 
 ### Install builds
 
@@ -98,6 +102,9 @@ screenshots, screen recording and a clean 9:41 status bar for store screenshots.
 
 Set several conditions at once: dark mode with the largest text, right-to-left, long German words, a slow or offline
 network, store screenshots, or your own. Turn on **All running devices** to apply anything to every device at once.
+
+**Capture store screenshots** relaunches your app in each language you pick (and dark mode) with a clean 9:41 status
+bar on every running device, and saves `<language>-light.png` / `-dark.png` in a folder per device.
 
 <img src="docs/screenshots/07-presets.png" alt="Presets tab next to Android and iOS in Arabic" width="900">
 
@@ -131,7 +138,7 @@ It's on Maven Central (`mavenCentral()`), so no extra repository is needed. To t
 
 Everything is free during early access. Later, a Pro plan through JetBrains Marketplace (with a free trial) will cover
 the power features: all-devices actions, presets, screen recording, the push tester, the deep link library, location,
-network conditions, battery, rotation, biometrics, media and the clean status bar, and the Network Inspector's mocking
+network conditions, battery, rotation, biometrics, media, the clean status bar and store screenshots, and the Network Inspector's mocking
 and HAR export. Device control, installing builds, settings, permissions, logs, the app data explorer and the Network
 Inspector itself stay free.
 

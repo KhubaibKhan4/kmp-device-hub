@@ -265,6 +265,9 @@ internal class PresetsTab(
     private val store: PropertiesComponent,
     /** The device conditions currently shown in the panel, for "Save current". */
     private val current: () -> TestPreset,
+    private val storeShots: io.github.kmpdevicehub.core.StoreScreenshots? = null,
+    /** Asks what to capture; null when cancelled. Tests answer directly. */
+    private val pickStorePlan: () -> Pair<io.github.kmpdevicehub.core.StoreShotPlan, java.io.File>? = { StoreShotsDialog.ask() },
 ) : DeviceTab {
     private val model = CollectionListModel<TestPreset>()
     private val list = JBList(model).apply {
@@ -280,17 +283,22 @@ internal class PresetsTab(
     private val applyButton = JButton("Apply", AllIcons.Actions.Execute)
     private val saveButton = JButton("Save current…", AllIcons.Actions.MenuSaveall)
     private val deleteButton = JButton("Delete")
+    private val storeButton = JButton("Capture store screenshots…", AllIcons.FileTypes.Image)
 
     override val component: JComponent = panel {
         row { cell(ScrollPaneFactory.createScrollPane(list)).align(AlignX.FILL).resizableColumn() }
         row { cell(applyButton); cell(saveButton); cell(deleteButton) }
         row { comment("A preset sets several conditions at once. Double-click to apply.", maxLineLength = HINT_WIDTH) }
+        separator()
+        row { cell(storeButton) }
+        row { comment("Relaunches your app in each language you pick (and dark mode) with a clean 9:41 status bar, and saves a screenshot of each. With All running devices, every device at once.", maxLineLength = HINT_WIDTH) }
     }
 
     init {
         reload()
         list.selectedIndex = 0
         applyButton.addActionListener { apply() }
+        storeButton.addActionListener { captureStoreShots() }
         list.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) { if (e.clickCount == 2) apply() }
         })
@@ -328,6 +336,21 @@ internal class PresetsTab(
     }
 
     internal val presetNames: List<String> get() = model.items.map { it.name }
+    private fun captureStoreShots() {
+        val shots = storeShots ?: return
+        if (!ctx.requirePro("Store screenshots")) return
+        val (plan, folder) = pickStorePlan() ?: return
+        ctx.runOnTargets("Capturing ${plan.shotsPerDevice} store screenshot(s) per device…") { d, app ->
+            shots.capture(d, app, plan, folder).also { result ->
+                if (result.ok) com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                    com.intellij.ide.actions.RevealFileAction.openDirectory(folder)
+                }
+            }
+        }
+    }
+
+    internal fun captureStoreShotsForTest() = captureStoreShots()
+
     internal fun applyPreset(name: String) { list.setSelectedValue(model.items.first { it.name == name }, false); apply() }
 
     private companion object {
@@ -435,5 +458,48 @@ internal class HintLabel : com.intellij.ui.components.JBLabel() {
 internal fun <T> textRenderer(text: (Any?) -> String?) = object : ColoredListCellRenderer<T>() {
     override fun customizeCellRenderer(list: JList<out T>, value: T?, index: Int, selected: Boolean, hasFocus: Boolean) {
         append(text(value).orEmpty())
+    }
+}
+
+
+/** Picks the languages, appearances and folder for store screenshots. */
+internal class StoreShotsDialog : com.intellij.openapi.ui.DialogWrapper(true) {
+    private val languageBoxes = (listOf<io.github.kmpdevicehub.core.AppLanguage?>(null) + io.github.kmpdevicehub.core.AppLanguage.COMMON)
+        .associateWith { lang -> JBCheckBox(lang?.label ?: "Device language").apply { isSelected = lang == null } }
+    private val darkBox = JBCheckBox("Also in dark mode")
+    private val folderField = com.intellij.openapi.ui.TextFieldWithBrowseButton().apply {
+        text = java.io.File(System.getProperty("user.home"), "Pictures/KMP Device Hub/Store screenshots " +
+            java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm"))).path
+        addActionListener {
+            com.intellij.openapi.fileChooser.FileChooser.chooseFile(com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createSingleFolderDescriptor(), null, null) { text = it.path }
+        }
+    }
+
+    init {
+        title = "Capture Store Screenshots"
+        init()
+    }
+
+    override fun createCenterPanel(): JComponent = panel {
+        row { label("Languages (your app relaunches in each):") }
+        languageBoxes.values.chunked(3).forEach { boxes -> row { boxes.forEach { cell(it) } } }
+        row { cell(darkBox) }
+        row("Save to:") { cell(folderField).align(AlignX.FILL).resizableColumn() }
+        row { comment("Each device gets a folder with <language>-light.png (and -dark.png). The status bar shows 9:41 with full battery and signal.", maxLineLength = 70) }
+    }
+
+    override fun doValidate(): com.intellij.openapi.ui.ValidationInfo? =
+        if (languageBoxes.values.none { it.isSelected }) com.intellij.openapi.ui.ValidationInfo("Pick at least one language.") else null
+
+    val plan: io.github.kmpdevicehub.core.StoreShotPlan
+        get() = io.github.kmpdevicehub.core.StoreShotPlan(languageBoxes.filterValues { it.isSelected }.keys.toList(), darkBox.isSelected)
+
+    val folder: java.io.File get() = java.io.File(folderField.text.trim())
+
+    companion object {
+        fun ask(): Pair<io.github.kmpdevicehub.core.StoreShotPlan, java.io.File>? {
+            val dialog = StoreShotsDialog()
+            return if (dialog.showAndGet()) dialog.plan to dialog.folder else null
+        }
     }
 }

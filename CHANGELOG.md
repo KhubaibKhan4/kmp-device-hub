@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Store screenshots (Presets tab): pick languages and dark mode, and get your app's screenshots from every running device with a clean 9:41 status bar, saved to one folder per device. Warns if a system "isn't responding" dialog was on screen.
+- KMP Logs: the time column shows full milliseconds.
+
 ## 0.3.0
 
 - New KMP App Data window: browse your app's private files on Android (debug builds, through run-as) and iOS simulators; read SharedPreferences and NSUserDefaults as a table; open SQLite databases (Room, SQLDelight, Core Data) with a table view and read-only SQL; view text, JSON and images; download or delete files.

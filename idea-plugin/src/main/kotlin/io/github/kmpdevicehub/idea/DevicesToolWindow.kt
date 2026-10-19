@@ -106,6 +106,8 @@ class DevicesPanel(
     },
     /** Shown when a Pro feature is used without Pro. */
     private val upsell: ((feature: String) -> Unit)? = null,
+    /** Store-screenshot choices for tests; null shows the dialog. */
+    private val storePlan: (() -> Pair<io.github.kmpdevicehub.core.StoreShotPlan, File>?)? = null,
 ) : JPanel(BorderLayout()), PanelContext {
     private val model = CollectionListModel<Row>()
     private val list = JBList(model).apply {
@@ -158,7 +160,8 @@ class DevicesPanel(
     private val linksTab = LinksTab(this, PropertiesComponent.getInstance(project)) { openLink(it) }
     private val simulateTab = SimulateTab(this, simulation)
     private val pushTab = PushTab(this, simulation)
-    private val presetsTab = PresetsTab(this, PresetRunner(settings, simulation), PropertiesComponent.getInstance()) { currentConditions() }
+    private val presetsTab = PresetsTab(this, PresetRunner(settings, simulation), PropertiesComponent.getInstance(), { currentConditions() },
+        io.github.kmpdevicehub.core.StoreScreenshots(settings, simulation, actions), storePlan ?: { StoreShotsDialog.ask() })
     private val deviceTabs = listOf(linksTab, simulateTab, pushTab, presetsTab)
 
     @Volatile

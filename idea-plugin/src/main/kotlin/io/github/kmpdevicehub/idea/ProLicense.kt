@@ -20,7 +20,7 @@ object ProLicense {
 
     val features = listOf(
         "Actions on all running devices at once",
-        "Test presets (dark + large text, RTL, slow network, store screenshots…)",
+        "Test presets (dark + large text, RTL, slow network…) and one-click store screenshots in every language",
         "Deep link library",
         "Screen recording",
         "Push notification tester",

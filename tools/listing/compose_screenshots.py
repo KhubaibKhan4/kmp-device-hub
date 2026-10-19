@@ -126,3 +126,9 @@ slide("06-simulate.png", "Simulate the real world",
 slide("07-presets.png", "Test presets in one click",
       "Dark + largest text, right-to-left, slow network, store screenshots, or save your own.",
       "devices-presets.png", "KMP Devices", ["android-rtl.png", "ios-rtl.png"])
+wide("08-logs.png", "Logs from Android and iOS",
+     "Your app's logcat and iOS simulator log in one window: filtered to your app, color-coded, searchable. println too.",
+     "logs.png", "KMP Logs")
+wide("09-app-data.png", "Look inside your app's data",
+     "Browse files, SharedPreferences and NSUserDefaults, and query Room / SQLDelight / Core Data databases with SQL.",
+     "app-data.png", "KMP App Data")

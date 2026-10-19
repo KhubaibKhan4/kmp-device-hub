@@ -192,6 +192,8 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue(waitFor { runner.ran.any { it == "/usr/bin/xcrun simctl ui UDID-1 appearance dark" } })
     }
 
+    private val storeFolder: File by lazy { java.nio.file.Files.createTempDirectory("store").toFile() }
+
     private fun proPanel(runner: RecordingRunner, pro: Boolean, upsells: MutableList<String> = mutableListOf()): DevicesPanel {
         val tools = ToolPaths("/sdk/adb", "/sdk/emulator", "/usr/bin/xcrun")
         return DevicesPanel(
@@ -201,6 +203,7 @@ class DevicesPanelTest : BasePlatformTestCase() {
             detectApps = { ProjectApps(listOf("org.example.project"), listOf("org.example.project.KotlinProject")) },
             detectLinks = { listOf("myapp://orders") },
             autoRefresh = false, isPro = { pro }, upsell = { upsells += it },
+            storePlan = { io.github.kmpdevicehub.core.StoreShotPlan(listOf(null, io.github.kmpdevicehub.core.AppLanguage.COMMON[1])) to storeFolder },
         )
     }
 
@@ -239,6 +242,10 @@ class DevicesPanelTest : BasePlatformTestCase() {
         assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 shell settings put system user_rotation 1") })
         panel.simulate.clickBiometric(match = true)
         assertTrue(waitFor { runner.ran.contains("/sdk/adb -s emulator-5554 emu finger touch 1") })
+
+        panel.presets.captureStoreShotsForTest()
+        assertTrue("store: ${runner.ran.filter { "screencap" in it }}", waitFor { runner.ran.count { it.contains("-s emulator-5554 shell screencap") } >= 2 })
+        assertTrue(runner.ran.any { it.contains("-s emulator-5554 shell cmd locale set-app-locales org.example.project --locales ar") })
 
         panel.push.sendWith("Hello", "orderId=42")
         assertTrue(waitFor { runner.ran.any { it.contains("-n org.example.project/.MainActivity") && it.endsWith("--es orderId 42") } })

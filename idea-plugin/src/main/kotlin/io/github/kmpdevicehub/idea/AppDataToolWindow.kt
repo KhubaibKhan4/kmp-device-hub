@@ -389,5 +389,6 @@ class AppDataPanel(
     internal val textShown: String get() = textArea.text
     internal val statusText: String get() = status.text.orEmpty()
     internal val databaseStatus: String get() = dbStatus.text.orEmpty()
+    internal fun selectTableForTest(name: String) { tableList.setSelectedValue(name, true) }
     internal fun runSqlForTest(sql: String) { sqlField.text = sql; runSql() }
 }

@@ -74,7 +74,7 @@ class LogsPanel(
     private val table = JBTable(model).apply {
         setShowGrid(false)
         tableHeader.reorderingAllowed = false
-        columnModel.getColumn(0).apply { preferredWidth = JBUI.scale(96); maxWidth = JBUI.scale(110) }
+        columnModel.getColumn(0).apply { preferredWidth = JBUI.scale(118); minWidth = JBUI.scale(110); maxWidth = JBUI.scale(140) }
         columnModel.getColumn(1).apply { preferredWidth = JBUI.scale(28); maxWidth = JBUI.scale(34) }
         columnModel.getColumn(2).apply { preferredWidth = JBUI.scale(170) }
         columnModel.getColumn(3).preferredWidth = JBUI.scale(900)

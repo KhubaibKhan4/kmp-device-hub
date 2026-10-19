@@ -19,7 +19,8 @@
     <p><b>Pro</b> (free trial on JetBrains Marketplace):</p>
     <ul>
       <li>Apply anything to all running devices at once.</li>
-      <li>Test presets: dark mode + largest text, right-to-left, slow network, offline, store screenshots, or your own.</li>
+      <li>Test presets: dark mode + largest text, right-to-left, slow network, offline, or your own.</li>
+      <li>Store screenshots: your app in every language (and dark mode) on every running device, with a clean 9:41 status bar.</li>
       <li>Screen recording, a push notification tester and a deep link library.</li>
       <li>Simulated location, network conditions, battery, rotation, Face ID / fingerprint, photos and clipboard, and a clean 9:41 status bar.</li>
       <li>Mock responses, fail requests or add latency from the Network Inspector; export HAR files.</li>
