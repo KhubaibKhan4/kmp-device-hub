@@ -70,7 +70,11 @@ requests or add latency to test your error states, and export everything as HAR.
 
 The **KMP Logs** window streams your app's logs: Android's logcat filtered to your app (it follows restarts), and on iOS
 simulators the unified log for your app, or its stdout so Kotlin/Native `println` shows up too. Filter by level, search,
-and copy what you see.
+copy or export what you see.
+
+When your app crashes (an Android fatal exception, an uncaught Kotlin/Native exception, an Objective-C exception or a
+Swift fatal error), the crash appears under the log with its stack trace. Lines in your own code are links to the
+source, and the first of them is already selected.
 
 <img src="docs/screenshots/08-logs.png" alt="KMP Logs streaming an Android app's logcat" width="900">
 
@@ -152,7 +156,6 @@ Inspector itself stay free.
 
 ## Roadmap
 
-- Logs: export, and a crash view that highlights the stack trace
 - App data: edit preferences and DataStore files in place
 - Physical iPhones (install, logs, screenshots)
 

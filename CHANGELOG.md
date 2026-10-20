@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- KMP Logs finds crashes: Android's fatal exceptions and native signals, uncaught Kotlin/Native exceptions on iOS (with "Include println"), Objective-C exceptions and Swift fatal errors. Each crash is listed under the log with its stack trace; lines in your code are links that open the file at that line, and the first one is selected.
+- A notification when your app crashes while KMP Logs is hidden.
+- Double-click a stack trace line in the log to open it in the editor.
+- Export Log… saves the shown lines to a file, after a line naming the app and device.
 - Pro licenses are verified against JetBrains' signatures (license keys and license-server tickets), as JetBrains recommends.
 - In Android Studio without the JetBrains Marketplace Licensing Support plugin, Pro features explain how to install it.
 - New `devicehub-network-noop` artifact for release builds.

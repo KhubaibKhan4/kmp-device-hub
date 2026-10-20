@@ -44,6 +44,14 @@ class LogsPanelTest : BasePlatformTestCase() {
                     "10-19 12:00:00.003  4321  4330 E Shop    : java.io.IOException: timeout",
                 )
                 "--pid=5555" in c -> listOf("10-19 12:01:00.000  5555  5555 I Shop    : Started again")
+                "--pid=6666" in c -> listOf(
+                    "10-19 12:02:00.000  6666  6666 D Shop    : Checkout tapped",
+                    "10-19 12:02:00.001  6666  6666 E AndroidRuntime: FATAL EXCEPTION: main",
+                    "10-19 12:02:00.001  6666  6666 E AndroidRuntime: Process: com.example.shop, PID: 6666",
+                    "10-19 12:02:00.001  6666  6666 E AndroidRuntime: java.lang.IllegalStateException: Cart is empty",
+                    "10-19 12:02:00.001  6666  6666 E AndroidRuntime: \tat android.view.View.performClick(View.java:8024)",
+                    "10-19 12:02:00.001  6666  6666 E AndroidRuntime: \tat com.example.shop.CartViewModel.checkout(CartViewModel.kt:2)",
+                )
                 "log stream" in c -> listOf("2026-10-19 12:00:00.100 Df iosApp[9:a] [shop:ui] Rendered home")
                 "--console-pty" in c -> listOf("com.example.shop: 9", "println from Kotlin")
                 else -> emptyList()
@@ -104,6 +112,29 @@ class LogsPanelTest : BasePlatformTestCase() {
         assertTrue(panel.shownLines.any { "started (pid 5555)" in it })
         panel.stop()
         assertFalse(panel.isStreaming)
+    }
+
+    fun `test lists crashes, links frames to project files and exports the log`() {
+        myFixture.addFileToProject("shared/src/commonMain/kotlin/com/example/shop/CartViewModel.kt", "package com.example.shop\n\nclass CartViewModel {\n    fun checkout() = error(\"Cart is empty\")\n}\n")
+        val runner = StreamRunner().apply { pid = "6666" }
+        val panel = LogsPanel(project, testRootDisposable, LogStreamer(runner, ToolPaths("/adb", null, "/xcrun")), devices = { listOf(emu) },
+            detectApps = { ProjectApps(listOf("com.example.shop"), emptyList()) }, autoRefresh = false)
+        panel.refreshDevicesForTest()
+        assertTrue(waitFor { true })
+        panel.setApp("com.example.shop")
+        assertFalse(panel.crashPaneShown)
+        panel.start()
+        assertTrue("crashes: ${panel.crashTitles}", waitFor { panel.linkedFrames.isNotEmpty() })
+        assertEquals(listOf("java.lang.IllegalStateException: Cart is empty"), panel.crashTitles)
+        assertTrue(panel.crashPaneShown)
+        assertEquals(listOf("CartViewModel.kt:2"), panel.linkedFrames)
+        assertEquals("    at com.example.shop.CartViewModel.checkout(CartViewModel.kt:2)", panel.selectedTraceLine)
+        assertTrue(panel.statusText, panel.statusText.endsWith("6 of 6 lines  ·  1 crash"))
+
+        val exported = panel.exportText().lines()
+        assertTrue(exported[0], exported[0].startsWith("# com.example.shop  ·  Pixel 9 (Android 17)  ·  "))
+        assertEquals("12:02:00.000 D Shop: Checkout tapped", exported[1])
+        assertEquals(8, exported.size) // header, six lines, trailing newline
     }
 
     fun `test streams the iOS log, or the app's println output`() {

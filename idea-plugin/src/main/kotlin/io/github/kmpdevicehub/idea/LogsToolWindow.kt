@@ -1,6 +1,9 @@
 package io.github.kmpdevicehub.idea
 
 import com.intellij.icons.AllIcons
+import com.intellij.notification.NotificationAction
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
@@ -9,29 +12,49 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.fileChooser.FileChooserFactory
+import com.intellij.openapi.fileChooser.FileSaverDescriptor
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.DumbAware
+import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.DumbAwareToggleAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
+import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.psi.search.FilenameIndex
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.ui.CollectionListModel
+import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.ColoredTableCellRenderer
+import com.intellij.ui.DoubleClickListener
 import com.intellij.ui.JBColor
+import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.ScrollPaneFactory
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBList
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.table.JBTable
 import com.intellij.util.Alarm
+import com.intellij.util.concurrency.AppExecutorUtil
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import io.github.kmpdevicehub.core.AppDetector
+import io.github.kmpdevicehub.core.Crash
+import io.github.kmpdevicehub.core.CrashDetector
 import io.github.kmpdevicehub.core.Device
 import io.github.kmpdevicehub.core.DevicePlatform
 import io.github.kmpdevicehub.core.DeviceService
@@ -41,14 +64,24 @@ import io.github.kmpdevicehub.core.LogLevel
 import io.github.kmpdevicehub.core.LogStreamer
 import io.github.kmpdevicehub.core.ProjectApps
 import io.github.kmpdevicehub.core.RunningProcess
+import io.github.kmpdevicehub.core.StackFrame
+import io.github.kmpdevicehub.core.StackTraces
+import io.github.kmpdevicehub.core.TraceLine
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.datatransfer.StringSelection
+import java.awt.event.KeyAdapter
+import java.awt.event.KeyEvent
+import java.awt.event.MouseEvent
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.swing.DefaultComboBoxModel
+import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JTable
+import javax.swing.ListSelectionModel
 import javax.swing.table.AbstractTableModel
 
 class LogsToolWindowFactory : ToolWindowFactory, DumbAware {
@@ -60,11 +93,12 @@ class LogsToolWindowFactory : ToolWindowFactory, DumbAware {
 
 /**
  * Your app's logs from an Android device (logcat, filtered to the app's process and following restarts) or an iOS
- * simulator (the unified log for the app's process, or its stdout so Kotlin/Native `println` shows up).
+ * simulator (the unified log for the app's process, or its stdout so Kotlin/Native `println` shows up). Crashes
+ * are listed under the log with their stack traces, whose lines in your code open in the editor.
  */
 class LogsPanel(
     private val project: Project,
-    parent: Disposable,
+    private val parent: Disposable,
     private val streamer: LogStreamer = LogStreamer(tools = toolsFor(project)),
     private val devices: () -> List<Device> = { DeviceService(tools = toolsFor(project)).list().devices.filter { it.state == DeviceState.RUNNING } },
     private val detectApps: () -> ProjectApps = { project.basePath?.let { AppDetector.detect(File(it)) } ?: ProjectApps(emptyList(), emptyList()) },
@@ -89,7 +123,7 @@ class LogsPanel(
     }
     private val search = SearchTextField(false).apply { textEditor.emptyText.text = "Search messages and tags" }
     private val printlnBox = JBCheckBox("Include println (relaunches the app)").apply {
-        toolTipText = "Kotlin/Native println goes to stdout, not the iOS log. This relaunches the app attached to its output."
+        toolTipText = "Kotlin/Native println and crash stack traces go to stdout, not the iOS log. This relaunches the app attached to its output."
     }
     private val status = JBLabel().apply { font = JBFont.small(); foreground = UIUtil.getContextHelpForeground() }
 
@@ -103,6 +137,27 @@ class LogsPanel(
     @Volatile private var androidPid: String? = null
     private var follow = true
     @Volatile private var apps = ProjectApps(emptyList(), emptyList())
+
+    private var detector = CrashDetector()
+    private val sources = SourceFrames(project)
+    private val crashModel = CollectionListModel<Crash>()
+    private val crashList = JBList(crashModel).apply {
+        selectionMode = ListSelectionModel.SINGLE_SELECTION
+        cellRenderer = object : ColoredListCellRenderer<Crash>() {
+            override fun customizeCellRenderer(list: JList<out Crash>, value: Crash, index: Int, selected: Boolean, hasFocus: Boolean) {
+                icon = AllIcons.General.Error
+                append(value.time + "  ", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                append(value.title)
+            }
+        }
+    }
+    private val traceModel = CollectionListModel<TraceLine>()
+    /** Files in the project that the shown crash's frames point at. */
+    private var traceFiles: Map<StackFrame, VirtualFile> = emptyMap()
+    private val traceList = JBList(traceModel).apply { cellRenderer = TraceRenderer(); emptyText.text = "Select a crash" }
+    private val crashTitle = JBLabel().apply { font = JBFont.label().asBold(); foreground = DeviceColors.problem }
+    private val splitter = OnePixelSplitter(true, "kmpdevicehub.logs.crashSplit", 0.6f)
+    private val crashPane: JPanel
 
     init {
         val toolbar = ActionManager.getInstance().createActionToolbar("KmpLogsToolbar", DefaultActionGroup(
@@ -130,7 +185,31 @@ class LogsPanel(
                 override fun actionPerformed(e: AnActionEvent) = CopyPasteManager.getInstance().setContents(StringSelection(model.rows.joinToString("\n") { format(it) }))
                 override fun getActionUpdateThread() = ActionUpdateThread.EDT
             },
+            object : DumbAwareAction("Export Log…", "Save the lines that match the filters as a text file", AllIcons.ToolbarDecorator.Export) {
+                override fun actionPerformed(e: AnActionEvent) = export()
+                override fun update(e: AnActionEvent) { e.presentation.isEnabled = model.rowCount > 0 }
+                override fun getActionUpdateThread() = ActionUpdateThread.EDT
+            },
         ), true).apply { targetComponent = this@LogsPanel }
+
+        val crashToolbar = ActionManager.getInstance().createActionToolbar("KmpLogsCrashToolbar", DefaultActionGroup(
+            object : DumbAwareAction("Copy Crash", "Copy the crash and its stack trace", AllIcons.Actions.Copy) {
+                override fun actionPerformed(e: AnActionEvent) { crashList.selectedValue?.let { CopyPasteManager.getInstance().setContents(StringSelection(it.text)) } }
+                override fun update(e: AnActionEvent) { e.presentation.isEnabled = crashList.selectedValue != null }
+                override fun getActionUpdateThread() = ActionUpdateThread.EDT
+            },
+        ), true).apply { targetComponent = traceList }
+        crashPane = OnePixelSplitter(false, "kmpdevicehub.logs.crashListSplit", 0.3f).apply {
+            firstComponent = ScrollPaneFactory.createScrollPane(crashList, true)
+            secondComponent = JPanel(BorderLayout()).apply {
+                add(JPanel(BorderLayout()).apply {
+                    add(crashTitle, BorderLayout.CENTER)
+                    add(crashToolbar.component, BorderLayout.EAST)
+                    border = JBUI.Borders.compound(JBUI.Borders.customLineBottom(JBColor.border()), JBUI.Borders.emptyLeft(8))
+                }, BorderLayout.NORTH)
+                add(ScrollPaneFactory.createScrollPane(traceList, true), BorderLayout.CENTER)
+            }
+        }
 
         val controls = JPanel(FlowLayout(FlowLayout.LEFT, JBUI.scale(6), 0)).apply {
             add(JBLabel("Device:")); add(deviceBox)
@@ -143,7 +222,8 @@ class LogsPanel(
             add(toolbar.component, BorderLayout.WEST)
             add(controls, BorderLayout.CENTER)
         }, BorderLayout.NORTH)
-        add(ScrollPaneFactory.createScrollPane(table, true), BorderLayout.CENTER)
+        splitter.firstComponent = ScrollPaneFactory.createScrollPane(table, true)
+        add(splitter, BorderLayout.CENTER)
         add(JPanel(BorderLayout()).apply {
             add(status, BorderLayout.WEST)
             border = JBUI.Borders.compound(JBUI.Borders.customLineTop(JBColor.border()), JBUI.Borders.empty(3, 8))
@@ -154,6 +234,22 @@ class LogsPanel(
             override fun textChanged(e: javax.swing.event.DocumentEvent) = refilter()
         })
         deviceBox.addActionListener { updateAppChoices() }
+        crashList.addListSelectionListener { if (!it.valueIsAdjusting) showCrash(crashList.selectedValue) }
+        object : DoubleClickListener() {
+            override fun onDoubleClick(event: MouseEvent): Boolean { openTraceLine(); return true }
+        }.installOn(traceList)
+        traceList.addKeyListener(object : KeyAdapter() {
+            override fun keyPressed(e: KeyEvent) { if (e.keyCode == KeyEvent.VK_ENTER) openTraceLine() }
+        })
+        object : DoubleClickListener() {
+            override fun onDoubleClick(event: MouseEvent): Boolean {
+                val frame = model.rows.getOrNull(table.selectedRow)?.let { StackTraces.frame(it.message) } ?: return false
+                ReadAction.nonBlocking<VirtualFile?> { sources.find(frame) }.inSmartMode(project).expireWith(parent)
+                    .finishOnUiThread(ModalityState.any()) { file -> file?.let { sources.open(it, frame.line) } }
+                    .submit(AppExecutorUtil.getAppExecutorService())
+                return true
+            }
+        }.installOn(table)
         appBox.addActionListener { (deviceBox.selectedItem as? Device)?.let { d -> appId().takeIf { it.isNotBlank() }?.let { props.setValue(appKey(d.platform), it) } } }
         Disposer.register(parent) { stop() }
 
@@ -260,13 +356,16 @@ class LogsPanel(
 
     private fun flush() {
         var added = false
+        val newCrashes = mutableSetOf<Int>()
         while (true) {
             val e = pending.poll() ?: break
             all += e
             added = true
+            detector.feed(e)?.let { if (onCrash(it)) newCrashes += it.id }
         }
         if (all.size > MAX_LINES) all.subList(0, all.size - MAX_LINES).clear()
         if (added) refilter()
+        if (!isShowing) crashModel.items.filter { it.id in newCrashes }.forEach(::notifyCrash)
     }
 
     private fun refilter() {
@@ -274,13 +373,103 @@ class LogsPanel(
         val query = search.text.trim()
         model.update(all.filter { it.level.ordinal >= min.ordinal && (query.isEmpty() || it.message.contains(query, true) || it.tag.contains(query, true)) })
         if (follow && model.rowCount > 0) table.scrollRectToVisible(table.getCellRect(model.rowCount - 1, 0, true))
-        if (streaming != null) status.text = status.text.substringBefore("  ·  ") + "  ·  ${model.rowCount} of ${all.size} lines"
+        if (streaming != null) status.text = status.text.substringBefore("  ·  ") + "  ·  ${model.rowCount} of ${all.size} lines" +
+            crashModel.size.let { if (it > 0) "  ·  $it ${if (it == 1) "crash" else "crashes"}" else "" }
     }
 
     private fun clear() {
         all.clear(); pending.clear(); model.update(emptyList())
+        detector = CrashDetector()
+        crashModel.removeAll()
+        splitter.secondComponent = null
         val device = streaming ?: deviceBox.selectedItem as? Device
         if (device?.platform == DevicePlatform.ANDROID) ApplicationManager.getApplication().executeOnPooledThread { streamer.clearAndroid(device) }
+    }
+
+    // ---- Crashes and export --------------------------------------------------------------------------------
+
+    /** Adds a new crash (shown and selected) or updates a growing one; true when it is new. */
+    private fun onCrash(crash: Crash): Boolean {
+        val index = crashModel.items.indexOfFirst { it.id == crash.id }
+        if (index >= 0) {
+            crashModel.setElementAt(crash, index)
+            if (crashList.selectedIndex == index) showCrash(crash)
+            return false
+        }
+        crashModel.add(crash)
+        if (splitter.secondComponent == null) splitter.secondComponent = crashPane
+        crashList.selectedIndex = crashModel.size - 1
+        return true
+    }
+
+    private fun showCrash(crash: Crash?) {
+        crashTitle.text = crash?.title.orEmpty()
+        crashTitle.toolTipText = crash?.title
+        traceModel.replaceAll(crash?.trace.orEmpty())
+        val frames = crash?.trace?.mapNotNull { it.frame }.orEmpty()
+        traceFiles = traceFiles.filterKeys { it in frames }
+        if (crash == null || frames.isEmpty()) return
+        ReadAction.nonBlocking<Map<StackFrame, VirtualFile>> { frames.mapNotNull { f -> sources.find(f)?.let { f to it } }.toMap() }
+            .inSmartMode(project).expireWith(parent)
+            .finishOnUiThread(ModalityState.any()) { found ->
+                if (crashList.selectedValue?.id != crash.id) return@finishOnUiThread
+                val first = traceFiles.isEmpty()
+                traceFiles = found
+                traceList.repaint()
+                // Select the first line in your code, where the crash most likely starts.
+                if (first) traceModel.items.indexOfFirst { it.frame in found }.takeIf { it >= 0 }?.let { traceList.selectedIndex = it; traceList.ensureIndexIsVisible(it) }
+            }
+            .submit(AppExecutorUtil.getAppExecutorService())
+    }
+
+    private fun openTraceLine() {
+        val frame = traceList.selectedValue?.frame ?: return
+        traceFiles[frame]?.let { sources.open(it, frame.line) }
+    }
+
+    private fun notifyCrash(crash: Crash) {
+        val app = appId().ifBlank { "Your app" }
+        NotificationGroupManager.getInstance().getNotificationGroup("KMP Device Hub")
+            .createNotification("$app crashed", StringUtil.escapeXmlEntities(crash.title), NotificationType.ERROR)
+            .addAction(NotificationAction.createSimpleExpiring("Show crash") {
+                ToolWindowManager.getInstance(project).getToolWindow("KMP Logs")?.show()
+                crashModel.items.indexOfFirst { it.id == crash.id }.takeIf { it >= 0 }?.let { crashList.selectedIndex = it }
+            })
+            .notify(project)
+    }
+
+    private fun export() {
+        val stamp = SimpleDateFormat("yyyy-MM-dd-HHmmss").format(Date())
+        val target = FileChooserFactory.getInstance()
+            .createSaveFileDialog(FileSaverDescriptor("Export Log", "Save the shown lines as a text file", "log", "txt"), project)
+            .save("${appId().ifBlank { "app" }}-$stamp.log") ?: return
+        target.file.writeText(exportText())
+    }
+
+    /** The shown lines, after a line saying which app and device they came from. */
+    internal fun exportText(): String {
+        val device = streaming ?: deviceBox.selectedItem as? Device
+        val header = listOfNotNull(
+            appId().ifBlank { null },
+            device?.let { "${it.name} (${if (it.platform == DevicePlatform.IOS) "iOS" else "Android"} ${it.osVersion.orEmpty()})".replace(" )", ")") },
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date()),
+        ).joinToString("  ·  ")
+        return "# $header\n" + model.rows.joinToString("") { format(it) + "\n" }
+    }
+
+    private inner class TraceRenderer : ColoredListCellRenderer<TraceLine>() {
+        override fun customizeCellRenderer(list: JList<out TraceLine>, value: TraceLine, index: Int, selected: Boolean, hasFocus: Boolean) {
+            font = JBUI.Fonts.create(java.awt.Font.MONOSPACED, JBFont.label().size)
+            val file = value.frame?.let { traceFiles[it] }
+            val text = value.text.trimStart()
+            val attributes = when {
+                file != null -> SimpleTextAttributes.LINK_PLAIN_ATTRIBUTES
+                text.startsWith("at ") || text.startsWith("...") -> SimpleTextAttributes.GRAYED_ATTRIBUTES
+                else -> SimpleTextAttributes(SimpleTextAttributes.STYLE_BOLD, DeviceColors.problem)
+            }
+            append(value.text.replace("\t", "    "), attributes)
+            toolTipText = file?.let { "Double-click to open ${it.name}:${value.frame?.line}" }
+        }
     }
 
     private fun onEdt(block: () -> Unit) = ApplicationManager.getApplication().invokeLater(block, ModalityState.any(), project.disposed)
@@ -336,5 +525,24 @@ class LogsPanel(
     internal fun refreshDevicesForTest() = refreshDevices()
     internal fun followForTest() = followAndroidRestart()
     internal val isStreaming: Boolean get() = streaming != null
+    internal val crashTitles: List<String> get() = crashModel.items.map { it.title }
+    internal val linkedFrames: List<String> get() = traceModel.items.mapNotNull { line -> line.frame?.let { frame -> traceFiles[frame]?.let { "${it.name}:${frame.line}" } } }
+    internal val selectedTraceLine: String? get() = traceList.selectedValue?.text
+    internal val crashPaneShown: Boolean get() = splitter.secondComponent != null
     internal fun selectDevice(id: String) { (0 until deviceBox.itemCount).map { deviceBox.getItemAt(it) }.firstOrNull { it.id == id }?.let { deviceBox.selectedItem = it } }
+}
+
+/** Finds the project files that stack frames point at, and opens them. */
+internal class SourceFrames(private val project: Project) {
+    /** The project file for [frame], or null for JDK and Android frames and files outside the project. Needs a read action. */
+    fun find(frame: StackFrame): VirtualFile? {
+        if (frame.isFramework) return null
+        val index = ProjectFileIndex.getInstance(project)
+        frame.path?.let { LocalFileSystem.getInstance().findFileByPath(it) }?.takeIf { index.isInContent(it) }?.let { return it }
+        if (DumbService.isDumb(project)) return null
+        val candidates = FilenameIndex.getVirtualFilesByName(frame.fileName, GlobalSearchScope.projectScope(project))
+        return candidates.firstOrNull { it.path.endsWith("/" + frame.suffix) } ?: candidates.singleOrNull()
+    }
+
+    fun open(file: VirtualFile, line: Int) = OpenFileDescriptor(project, file, (line - 1).coerceAtLeast(0), 0).navigate(true)
 }

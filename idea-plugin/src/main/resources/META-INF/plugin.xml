@@ -11,7 +11,7 @@
       <li>Grant and revoke permissions, switch dark mode and text size, and run your app in another language (RTL too).</li>
       <li>Open deep links, take screenshots, and pair Android phones over Wi-Fi.</li>
       <li>Install an .apk or simulator .app by dropping it on a device.</li>
-      <li><b>Logs</b>: your app's logcat and iOS simulator log in one window, filtered to your app, with println support on iOS.</li>
+      <li><b>Logs</b>: your app's logcat and iOS simulator log in one window, filtered to your app, with println support on iOS. Crashes are listed with their stack traces, linked to your source.</li>
       <li><b>App data</b>: browse your app's files, SharedPreferences / NSUserDefaults and SQLite databases (Room, SQLDelight, Core Data) with read-only SQL.</li>
       <li><b>Network Inspector</b>: every API call your app makes (Ktor or OkHttp), with headers, bodies, a JSON tree,
           errors, timings, throughput and device connectivity. Copy any call as cURL.</li>

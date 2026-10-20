@@ -201,6 +201,35 @@ class ListingRenderTest : BasePlatformTestCase() {
         assertTrue(waitFor { logs.shownLines.size == logLines.size })
         render(logs, 1400, 420, "logs")
 
+        // The same app crashing at checkout, with the crash pane linking to the project's source.
+        myFixture.addFileToProject("shared/src/commonMain/kotlin/com/example/shop/checkout/CheckoutViewModel.kt", "package com.example.shop.checkout\n\nclass CheckoutViewModel\n")
+        val crashLines = logLines.take(8) + listOf(
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: FATAL EXCEPTION: main",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: Process: com.example.shop, PID: 4321",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: java.lang.IllegalStateException: Order has no shipping address",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat com.example.shop.checkout.CheckoutViewModel.placeOrder(CheckoutViewModel.kt:88)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat com.example.shop.checkout.CheckoutViewModel\$submit\$1.invokeSuspend(CheckoutViewModel.kt:61)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:104)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat android.os.Handler.handleCallback(Handler.java:991)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat android.os.Looper.loop(Looper.java:317)",
+            "10-19 12:00:04.630  4321  4321 E AndroidRuntime: \tat android.app.ActivityThread.main(ActivityThread.java:8934)",
+            "10-19 12:00:04.702  4321  4321 I Process : Sending signal. PID: 4321 SIG: 9",
+        )
+        val crashRunner = object : CommandRunner by logRunner {
+            override fun stream(command: List<String>, onLine: (String) -> Unit): RunningProcess? = logRunner.stream(command) {}.also { crashLines.forEach(onLine) }
+        }
+        val crashing = LogsPanel(project, testRootDisposable, io.github.kmpdevicehub.core.LogStreamer(crashRunner, ToolPaths("/adb", null, null)),
+            devices = { listOf(devices.devices[0]) }, detectApps = { ProjectApps(listOf("com.example.shop"), emptyList()) }, autoRefresh = false)
+        crashing.refreshDevicesForTest()
+        PlatformTestUtil.dispatchAllEventsInIdeEventQueue()
+        crashing.selectDevice("emulator-5554")
+        crashing.setApp("com.example.shop")
+        crashing.setLevel(io.github.kmpdevicehub.core.LogLevel.VERBOSE)
+        crashing.start()
+        assertTrue(waitFor { crashing.linkedFrames.size == 2 })
+        render(crashing, 1400, 560, "logs-crash")
+
         val sqlite = listOf("/usr/bin/sqlite3", "/opt/homebrew/bin/sqlite3").firstOrNull { File(it).canExecute() } ?: return
         val udid = "0A1B2C3D-0000-1111-2222-333344445555"
         val base = java.nio.file.Files.createTempDirectory("sim").toFile()
