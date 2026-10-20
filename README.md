@@ -76,6 +76,8 @@ When your app crashes (an Android fatal exception, an uncaught Kotlin/Native exc
 Swift fatal error), the crash appears under the log with its stack trace. Lines in your own code are links to the
 source, and the first of them is already selected.
 
+<img src="docs/screenshots/10-crashes.png" alt="KMP Logs with an Android crash and its stack trace linked to the source" width="900">
+
 <img src="docs/screenshots/08-logs.png" alt="KMP Logs streaming an Android app's logcat" width="900">
 
 ### App data explorer

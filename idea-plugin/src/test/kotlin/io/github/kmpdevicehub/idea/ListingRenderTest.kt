@@ -228,7 +228,7 @@ class ListingRenderTest : BasePlatformTestCase() {
         crashing.setLevel(io.github.kmpdevicehub.core.LogLevel.VERBOSE)
         crashing.start()
         assertTrue(waitFor { crashing.linkedFrames.size == 2 })
-        render(crashing, 1400, 560, "logs-crash")
+        render(crashing, 1400, 680, "logs-crash")
 
         val sqlite = listOf("/usr/bin/sqlite3", "/opt/homebrew/bin/sqlite3").firstOrNull { File(it).canExecute() } ?: return
         val udid = "0A1B2C3D-0000-1111-2222-333344445555"

@@ -7,6 +7,7 @@ RENDERS = Path(sys.argv[1])   # idea-plugin/build/listing
 FOOTAGE = Path(sys.argv[2])   # device screenshots
 ICON = Path(sys.argv[3])      # plugin icon png
 OUT = Path(sys.argv[4]); OUT.mkdir(parents=True, exist_ok=True)
+ONLY = set(sys.argv[5:])      # optional: just these screenshots, e.g. 10-crashes.png
 
 W, H = 2560, 1600
 FONT = "/System/Library/Fonts/SFNS.ttf"
@@ -78,6 +79,7 @@ def badge(canvas):
     ImageDraw.Draw(canvas).text((W - 140 - 88 - 24, 160), "KMP Device Hub", fill=(225, 228, 245), font=font(40, True), anchor="rm")
 
 def slide(name, title, subtitle, panel, panel_title, phones, panel_box=(140, 380, 1150, 1150)):
+    if ONLY and name not in ONLY: return
     canvas = BG.copy().convert("RGBA")
     headline(canvas, title, subtitle)
     badge(canvas)
@@ -97,6 +99,7 @@ def slide(name, title, subtitle, panel, panel_title, phones, panel_box=(140, 380
     print("wrote", name)
 
 def wide(name, title, subtitle, panel, panel_title):
+    if ONLY and name not in ONLY: return
     canvas = BG.copy().convert("RGBA")
     headline(canvas, title, subtitle)
     badge(canvas)
@@ -132,3 +135,6 @@ wide("08-logs.png", "Logs from Android and iOS",
 wide("09-app-data.png", "Look inside your app's data",
      "Browse files, SharedPreferences and NSUserDefaults, and query Room / SQLDelight / Core Data databases with SQL.",
      "app-data.png", "KMP App Data")
+wide("10-crashes.png", "Crashes, straight to the line",
+     "Android, Kotlin/Native and Swift crashes are listed with their stack traces. Click through to your code.",
+     "logs-crash.png", "KMP Logs")
