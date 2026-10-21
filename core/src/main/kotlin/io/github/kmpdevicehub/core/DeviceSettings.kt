@@ -46,6 +46,28 @@ data class AppLanguage(val label: String, val android: String, val ios: String, 
             AppLanguage("Japanese", "ja", "ja"),
             AppLanguage("Chinese (Simplified)", "zh-CN", "zh-Hans"),
         )
+
+        private val RTL = setOf("ar", "ur", "he", "iw", "fa", "ps", "sd", "ug", "yi", "dv", "ckb")
+
+        /**
+         * The language for a BCP 47 tag such as `de`, `pt-BR` or `zh-Hans`, as other plugins pass it
+         * (KMP Translations Hub's "Run in this locale"): one of [COMMON] when it matches, else built from the tag.
+         */
+        fun fromTag(tag: String): AppLanguage {
+            val clean = tag.trim().replace('_', '-')
+            COMMON.firstOrNull { it.android.equals(clean, true) || it.ios.equals(clean, true) }?.let { return it }
+            val parts = clean.split('-')
+            val language = parts.first().lowercase()
+            val label = java.util.Locale.forLanguageTag(clean).getDisplayName(java.util.Locale.ENGLISH).ifEmpty { clean }
+            // Android wants a region for Chinese scripts; iOS takes the script form as is.
+            val android = when {
+                language == "zh" && parts.any { it.equals("Hant", true) } -> "zh-TW"
+                language == "zh" && parts.any { it.equals("Hans", true) } -> "zh-CN"
+                else -> clean
+            }
+            val ios = if (language == "iw") "he" + clean.removePrefix(parts.first()) else clean
+            return AppLanguage(label + if (language in RTL) " (RTL)" else "", android, ios, rtl = language in RTL)
+        }
     }
 }
 

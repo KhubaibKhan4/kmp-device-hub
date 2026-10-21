@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Other plugins can relaunch your app in a language on the selected device: KMP Translations Hub's "Run in this locale" uses it.
 - KMP Logs finds crashes: Android's fatal exceptions and native signals, uncaught Kotlin/Native exceptions on iOS (with "Include println"), Objective-C exceptions and Swift fatal errors. Each crash is listed under the log with its stack trace; lines in your code are links that open the file at that line, and the first one is selected.
 - A notification when your app crashes while KMP Logs is hidden.
 - Double-click a stack trace line in the log to open it in the editor.

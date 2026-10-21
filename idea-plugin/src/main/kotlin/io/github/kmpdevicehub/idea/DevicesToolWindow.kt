@@ -428,6 +428,16 @@ class DevicesPanel(
         return false
     }
 
+    /**
+     * Runs the app in [language] on the selected device (or all running ones), as the Apply button does; for
+     * [RunInLocaleAction]. False when no running device is selected.
+     */
+    fun runAppIn(language: AppLanguage): Boolean {
+        if (targets().isEmpty()) return false
+        runOnTargets("Changing language…") { d, a -> settings.setAppLanguage(d, a, language) }
+        return true
+    }
+
     /** The selected device, or every running device with "All running devices" on. */
     private fun targets(): List<Device> =
         if (allDevicesBox.isSelected) lastList.devices.filter { it.state == DeviceState.RUNNING }

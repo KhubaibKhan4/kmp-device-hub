@@ -42,4 +42,9 @@
         <postStartupActivity implementation="io.github.kmpdevicehub.idea.NetworkInspectorStartup"/>
         <notificationGroup id="KMP Device Hub" displayType="BALLOON"/>
     </extensions>
+
+    <actions>
+        <!-- Called by id from other plugins (KMP Translations Hub); not in any menu. -->
+        <action id="KmpDeviceHub.RunInLocale" class="io.github.kmpdevicehub.idea.RunInLocaleAction"/>
+    </actions>
 </idea-plugin>
