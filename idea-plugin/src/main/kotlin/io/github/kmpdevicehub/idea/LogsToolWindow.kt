@@ -441,7 +441,7 @@ class LogsPanel(
     private fun export() {
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmmss").format(Date())
         val target = FileChooserFactory.getInstance()
-            .createSaveFileDialog(FileSaverDescriptor("Export Log", "Save the shown lines as a text file", "log", "txt"), project)
+            .createSaveFileDialog(FileSaverDescriptor("Export Log", "Save the shown lines as a text file", "log"), project)
             .save("${appId().ifBlank { "app" }}-$stamp.log") ?: return
         target.file.writeText(exportText())
     }
