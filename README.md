@@ -42,7 +42,9 @@ a platform filter. Start or shut down any of them, and launch, stop, clear or un
 ### Dark mode, text size and right-to-left
 
 Switch appearance and text size on Android and iOS, and run your app in another language, including Arabic, Urdu and
-Hebrew for right-to-left layouts. The app restarts in the new language on both platforms.
+Hebrew for right-to-left layouts. The app restarts in the new language on both platforms. With
+[KMP Translations Hub](https://plugins.jetbrains.com/plugin/35376-kmp-translations-hub) installed, **Run App in Selected
+Locale** in its Translations table does the same for the language of the column you're in.
 
 <img src="docs/screenshots/02-appearance-language.png" alt="Settings tab with an iPhone at the largest text size and Android in Arabic" width="900">
 
@@ -74,7 +76,8 @@ copy or export what you see.
 
 When your app crashes (an Android fatal exception, an uncaught Kotlin/Native exception, an Objective-C exception or a
 Swift fatal error), the crash appears under the log with its stack trace. Lines in your own code are links to the
-source, and the first of them is already selected.
+source, and the first of them is already selected; double-click a stack trace line in the log to open it too. If KMP
+Logs is hidden when your app crashes, a notification tells you.
 
 <img src="docs/screenshots/10-crashes.png" alt="KMP Logs with an Android crash and its stack trace linked to the source" width="900">
 

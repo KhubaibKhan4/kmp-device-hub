@@ -1,6 +1,9 @@
 """KMP Device Hub banner (1920x1080), in the same style as the KMP Dependency Hub one.
 
-python3 tools/listing/make_banner.py idea-plugin/build/listing <device-screenshots-dir> dist/listing/banner.png
+python3 tools/listing/make_banner.py idea-plugin/build/listing <device-screenshots-dir> dist/listing/banner.png [previous-banner.png]
+
+Without the device screenshots (android-rtl.png, ios-dark.png), pass a previous banner: its top right (the Devices panel
+and the two phones) is reused, on the same background, which is drawn from a fixed seed.
 """
 import random
 import sys
@@ -8,6 +11,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 RENDERS, FOOTAGE, OUT = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+PREVIOUS = Path(sys.argv[4]) if len(sys.argv) > 4 else None
 W, H = 1920, 1080
 HELVETICA = "/System/Library/Fonts/HelveticaNeue.ttc"
 
@@ -91,23 +95,29 @@ features = [
     "Dark mode, text size, RTL and permissions",
     "Network Inspector for Ktor and OkHttp",
     "Location, slow network, push and 9:41 status bar",
+    "Logs and crashes from both platforms, linked to your code",
 ]
 for i, f in enumerate(features):
-    y = 700 + i * 54
+    y = 680 + i * 54
     # Drawn checkmark: Helvetica has no ✓ glyph.
     d.line([(100, y + 19), (110, y + 29), (128, y + 8)], fill=(74, 222, 128), width=5, joint="curve")
     d.text((146, y + 2), f, font=font(30), fill=(232, 230, 245))
 
-# Right: the real Devices panel and two real device screens in a row, the Network window underneath.
-devices = fit(window(Image.open(RENDERS / "devices-settings.png"), "KMP Devices"), 400, 620)
-android = fit(Image.open(FOOTAGE / "android-rtl.png"), 300, 590)
-iphone = fit(Image.open(FOOTAGE / "ios-dark.png"), 300, 590)
-network = fit(window(Image.open(RENDERS / "network-json.png"), "KMP Network"), 860, 290)
-
-card(canvas, devices, (1000, 112), r=14, glow=(127, 82, 255, 110))
-card(canvas, android, (1438, 128), r=40, glow=(30, 136, 229, 120))
-card(canvas, iphone, (1618, 160), r=40, glow=(127, 82, 255, 130))
-card(canvas, network, (1000, 776), r=14, glow=(30, 136, 229, 90))
+# Right: the real Devices panel and two real device screens in a row, a crash in KMP Logs underneath.
+if (FOOTAGE / "android-rtl.png").exists() or PREVIOUS is None:
+    devices = fit(window(Image.open(RENDERS / "devices-settings.png"), "KMP Devices"), 400, 620)
+    android = fit(Image.open(FOOTAGE / "android-rtl.png"), 300, 590)
+    iphone = fit(Image.open(FOOTAGE / "ios-dark.png"), 300, 590)
+    card(canvas, devices, (1000, 112), r=14, glow=(127, 82, 255, 110))
+    card(canvas, android, (1438, 128), r=40, glow=(30, 136, 229, 120))
+    card(canvas, iphone, (1618, 160), r=40, glow=(127, 82, 255, 130))
+else:
+    top_right = (960, 0, W, 768)
+    canvas.paste(Image.open(PREVIOUS).convert("RGBA").crop(top_right), top_right[:2])
+crash = Image.open(RENDERS / "logs-crash.png").convert("RGB")
+crash = crash.crop((0, int(crash.height * 0.42), int(crash.width * 0.8), crash.height))
+crash = fit(window(crash, "KMP Logs · crash"), 860, 290)
+card(canvas, crash, (1000, 776), r=14, glow=(229, 57, 53, 90))
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 canvas.convert("RGB").save(OUT, optimize=True)
