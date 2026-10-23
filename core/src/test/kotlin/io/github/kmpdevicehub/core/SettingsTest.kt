@@ -159,4 +159,15 @@ class SettingsTest {
         assertContains(settings.pair("192.168.1.20:37099", "12ab").message, "6 digits")
         assertTrue(settings.connect("192.168.1.20:41355").ok)
     }
+
+    @Test
+    fun `languages from other plugins' tags`() {
+        assertEquals(AppLanguage.COMMON.first { it.android == "pt-BR" }, AppLanguage.fromTag("pt-BR"))
+        assertEquals(AppLanguage.COMMON.first { it.ios == "zh-Hans" }, AppLanguage.fromTag("zh-Hans"))
+        val persian = AppLanguage.fromTag("fa")
+        assertEquals("fa", persian.android)
+        assertTrue(persian.rtl)
+        assertEquals(AppLanguage("Chinese (Traditional) (Taiwan)".let { java.util.Locale.forLanguageTag("zh-Hant-TW").getDisplayName(java.util.Locale.ENGLISH) }, "zh-TW", "zh-Hant-TW"), AppLanguage.fromTag("zh-Hant-TW"))
+        assertFalse(AppLanguage.fromTag("sv").rtl)
+    }
 }

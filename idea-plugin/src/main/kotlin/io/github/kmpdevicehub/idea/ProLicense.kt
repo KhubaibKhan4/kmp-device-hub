@@ -102,10 +102,22 @@ object ProLicense {
                 else -> null
             }
         }
-        com.intellij.openapi.actionSystem.ex.ActionUtil.performAction(register,
+        performAction(register,
             com.intellij.openapi.actionSystem.AnActionEvent.createEvent(context, com.intellij.openapi.actionSystem.Presentation(), "",
                 com.intellij.openapi.actionSystem.ActionUiKind.NONE, null))
         cached = null
+    }
+
+    /**
+     * `ActionUtil.performAction` only exists from 2025.2 (a NoSuchMethodError in 2025.1, which this plugin supports);
+     * 2025.1 has `performActionDumbAwareWithCallbacks`, which newer IDEs deprecate. Looked up at runtime.
+     */
+    private fun performAction(action: com.intellij.openapi.actionSystem.AnAction, event: com.intellij.openapi.actionSystem.AnActionEvent) {
+        val util = com.intellij.openapi.actionSystem.ex.ActionUtil::class.java
+        val types = arrayOf(com.intellij.openapi.actionSystem.AnAction::class.java, com.intellij.openapi.actionSystem.AnActionEvent::class.java)
+        val method = runCatching { util.getMethod("performAction", *types) }.getOrNull()
+            ?: util.getMethod("performActionDumbAwareWithCallbacks", *types)
+        method.invoke(null, action, event)
     }
 
     private const val CACHE_MS = 6 * 60 * 60 * 1000L
