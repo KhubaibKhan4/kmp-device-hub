@@ -26,6 +26,8 @@
       <li>Mock responses, fail requests or add latency from the Network Inspector; export HAR files.</li>
     </ul>
     <p>Works with the tools you already have: the Android SDK and, on macOS, Xcode.</p>
+    <p>If it saves you time, you can support its development on <a href="https://ko-fi.com/Y8Y2YABZ7">Ko-fi</a> or
+       <a href="https://www.buymeacoffee.com/khubaibkhan">Buy Me a Coffee</a>.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
