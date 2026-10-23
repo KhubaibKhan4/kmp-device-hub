@@ -14,6 +14,8 @@ For Kotlin Multiplatform and Compose Multiplatform developers who test on Androi
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.khubaibkhan4/devicehub-network?label=devicehub-network)](https://central.sonatype.com/artifact/io.github.khubaibkhan4/devicehub-network)
 ![Android Studio & IntelliJ IDEA 2025.1+](https://img.shields.io/badge/Android%20Studio%20%26%20IntelliJ-2025.1%2B-7F52FF)
 ![Platforms](https://img.shields.io/badge/devices-Android%20%7C%20iOS%20simulator-1E88E5)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/Y8Y2YABZ7)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?logo=buymeacoffee&logoColor=black)](https://www.buymeacoffee.com/khubaibkhan)
 
 [▶ Watch the 1-minute preview](docs/kmp-device-hub-preview.mp4)
 
@@ -158,6 +160,9 @@ the power features: all-devices actions, presets, screen recording, the push tes
 network conditions, battery, rotation, biometrics, media, the clean status bar and store screenshots, and the Network Inspector's mocking
 and HAR export. Device control, installing builds, settings, permissions, logs, the app data explorer and the Network
 Inspector itself stay free.
+
+If it saves you time, you can support its development on [Ko-fi](https://ko-fi.com/Y8Y2YABZ7) or [Buy Me a Coffee](https://www.buymeacoffee.com/khubaibkhan). A rating
+or review on the [Marketplace page](https://plugins.jetbrains.com/plugin/35272-kmp-device-hub/reviews) helps a lot too.
 
 ## Roadmap
 
